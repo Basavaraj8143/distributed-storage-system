@@ -9,13 +9,18 @@ import java.nio.file.*;
 @RestController
 public class StorageController {
 
+    private Path getChunkPath(String chunkId) {
+        String port = System.getProperty("server.port", "5001");
+        return Paths.get("storage_" + port + "/chunk_" + chunkId);
+    }
+
     @PostMapping("/storeChunk")
     public ResponseEntity<String> storeChunk(
             @RequestParam("chunkId") String chunkId,
             @RequestParam("file") MultipartFile file) {
 
         try {
-            Path path = Paths.get("storage/chunk_" + chunkId);
+            Path path = getChunkPath(chunkId);
 
             // create folder if not exists
             Files.createDirectories(path.getParent());
@@ -34,7 +39,7 @@ public class StorageController {
     public ResponseEntity<byte[]> getChunk(@PathVariable String chunkId) {
 
         try {
-            Path path = Paths.get("storage/chunk_" + chunkId);
+            Path path = getChunkPath(chunkId);
 
             byte[] data = Files.readAllBytes(path);
 
