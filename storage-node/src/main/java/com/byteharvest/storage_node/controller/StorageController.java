@@ -1,5 +1,6 @@
 package com.byteharvest.storage_node.controller;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -9,9 +10,21 @@ import java.nio.file.*;
 @RestController
 public class StorageController {
 
+    @Value("${storage.base-dir:}")
+    private String storageBaseDir;
+
+    @Value("${server.port:5001}")
+    private String serverPort;
+
     private Path getChunkPath(String chunkId) {
-        String port = System.getProperty("server.port", "5001");
-        return Paths.get("storage_" + port + "/chunk_" + chunkId);
+        String port = serverPort;
+        String fileName = "chunk_" + chunkId;
+
+        if (storageBaseDir == null || storageBaseDir.isBlank()) {
+            return Paths.get("storage_" + port, fileName);
+        }
+
+        return Paths.get(storageBaseDir, "storage_" + port, fileName);
     }
 
     @PostMapping("/storeChunk")
