@@ -43,3 +43,13 @@ Thumbs.db
 # Local storage/data
 storage/
 storage_*/
+
+# Frontend (client-ui)
+client-ui/node_modules/
+client-ui/.vite/
+client-ui/.cache/
+client-ui/coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
