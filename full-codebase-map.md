@@ -36,6 +36,8 @@ This file explains what each project-owned file in the repository does.
 - `docs/planning/frontend-parallel-plan.md`: Plan for splitting frontend work into parallel workstreams for shell/routing, API layer, file flow, and monitoring UI.
 - `docs/planning/stage-3-plan.md`: Consolidated Stage 3 checklist showing all heartbeat and repair sub-parts as done.
 - `docs/planning/stage-4-plan.md`: Design plan for checksum-based chunk integrity validation and corruption repair.
+- `docs/planning/persistent-metadata-plan.md`: Implementation plan for replacing the master’s in-memory metadata map with persistent database-backed storage.
+- `docs/planning/README.md`: Small index page for planning documents.
 - `docs/progress/stage-1-done.md`: Completion note for the first storage milestone, including implemented endpoints and end-to-end verification steps.
 - `docs/progress/stage-2-done.md`: Completion note for replication support and replica-fallback downloads.
 - `docs/progress/stage-3-parts-1-3.md`: Documentation for heartbeat sending, active/failed node tracking, and timeout-based failure detection.
