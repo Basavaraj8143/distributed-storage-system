@@ -26,25 +26,27 @@ This file explains what each project-owned file in the repository does.
 - `.idea/vcs.xml`: Maps the project directories to Git within IntelliJ.
 - `.idea/workspace.xml`: User-specific IntelliJ workspace state such as recent run configs, UI choices, tab state, and local preferences.
 
-## Learning And Planning Docs
+## Docs
 
-- `learn/basicplan.md`: Original project plan covering goals, architecture, staged implementation, and milestone breakdown.
-- `learn/apiendpoints.md`: Human-readable API reference for the master and storage-node HTTP endpoints, request formats, and sample cURL usage.
-- `learn/init.md`: Early gap-analysis note explaining what Stage 1 had and had not completed yet.
-- `learn/frontend_parallel_plan.md`: Plan for splitting frontend work into parallel workstreams for shell/routing, API layer, file flow, and monitoring UI.
-- `learn/stage1_done.md`: Completion note for the first storage milestone, including implemented endpoints and end-to-end verification steps.
-- `learn/stage2_done.md`: Completion note for replication support and replica-fallback downloads.
-- `learn/stage3(1-3).md`: Documentation for heartbeat sending, active/failed node tracking, and timeout-based failure detection.
-- `learn/stage3(4-6).md`: Documentation for metadata cleanup, under-replication detection, and re-replication workflow.
-- `learn/stage3_plan.md`: Consolidated Stage 3 checklist showing all heartbeat and repair sub-parts as done.
-- `learn/stage4_plan.md`: Design plan for checksum-based chunk integrity validation and corruption repair.
-- `learn/stage4_done.md`: Completion note for checksum verification, corruption recovery, and the added integrity test suite.
-- `learn/staged-changes(28-04).md`: Log of a frontend-focused work session that wired upload/download, monitoring, and logs to the backend.
-- `learn/wslsetup.md`: Step-by-step guide for running the project from WSL Ubuntu.
-- `learn/frontend-ui/workspace a.md`: Empty placeholder file for the frontend shell/routing workstream.
-- `learn/frontend-ui/workspace-b.md`: Workstream brief for the centralized frontend API client layer.
-- `learn/frontend-ui/workspace-c.md`: Workstream brief for the upload/download user flow pages.
-- `learn/frontend-ui/workspace-d.md`: Workstream brief for the monitoring dashboard and node status pages.
+- `docs/README.md`: Index for the reorganized documentation tree and summary of the new folder structure.
+- `docs/api/endpoints.md`: Human-readable API reference for the master and storage-node endpoints, request formats, and sample cURL usage.
+- `docs/setup/wsl-setup.md`: Step-by-step guide for running the project from WSL Ubuntu.
+- `docs/planning/basic-plan.md`: Original project plan covering goals, architecture, staged implementation, and milestone breakdown.
+- `docs/planning/project-init-gap-analysis.md`: Early gap-analysis note explaining what Stage 1 had and had not completed yet.
+- `docs/planning/frontend-parallel-plan.md`: Plan for splitting frontend work into parallel workstreams for shell/routing, API layer, file flow, and monitoring UI.
+- `docs/planning/stage-3-plan.md`: Consolidated Stage 3 checklist showing all heartbeat and repair sub-parts as done.
+- `docs/planning/stage-4-plan.md`: Design plan for checksum-based chunk integrity validation and corruption repair.
+- `docs/progress/stage-1-done.md`: Completion note for the first storage milestone, including implemented endpoints and end-to-end verification steps.
+- `docs/progress/stage-2-done.md`: Completion note for replication support and replica-fallback downloads.
+- `docs/progress/stage-3-parts-1-3.md`: Documentation for heartbeat sending, active/failed node tracking, and timeout-based failure detection.
+- `docs/progress/stage-3-parts-4-6.md`: Documentation for metadata cleanup, under-replication detection, and re-replication workflow.
+- `docs/progress/stage-4-done.md`: Completion note for checksum verification, corruption recovery, and the added integrity test suite.
+- `docs/progress/staged-changes-2026-04-28.md`: Log of a frontend-focused work session that wired upload/download, monitoring, and logs to the backend.
+- `docs/frontend/workstreams/workspace-a.md`: Empty placeholder file for the frontend shell/routing workstream.
+- `docs/frontend/workstreams/workspace-b.md`: Workstream brief for the centralized frontend API client layer.
+- `docs/frontend/workstreams/workspace-c.md`: Workstream brief for the upload/download user flow pages.
+- `docs/frontend/workstreams/workspace-d.md`: Workstream brief for the monitoring dashboard and node status pages.
+- `docs/ci-pipeline.md`: Documentation for the GitHub Actions CI workflow, including triggers, frontend/backend jobs, Java/Node setup, and extension ideas.
 
 ## Sample Stored Chunk Files
 
@@ -132,5 +134,5 @@ This file explains what each project-owned file in the repository does.
 
 - The real application logic lives mainly in `master-service/src/main/java/...` and `storage-node/src/main/java/...`.
 - `client-ui/src/...` is a thin operator console over those APIs.
-- `learn/...` documents how the project evolved stage by stage.
+- `docs/...` now contains the project’s planning, progress notes, setup guides, API reference, and CI documentation in one place.
 - The `storage_5001`, `storage_5002`, and `storage_5003` folders are runtime data folders created by the storage-node service based on port.
