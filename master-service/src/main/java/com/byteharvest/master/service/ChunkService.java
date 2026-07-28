@@ -27,6 +27,7 @@ public class ChunkService {
     private EventLogService eventLogService;
 
     private Map<String, List<ChunkMetadata>> storage = new HashMap<>();
+    private Map<String, String> originalFileNames = new HashMap<>();
 
     @Value("${storage.nodes:http://localhost:5001,http://localhost:5002,http://localhost:5003}")
     private String configuredNodes;
@@ -76,6 +77,7 @@ public class ChunkService {
             }
 
             storage.put(fileId, chunkList);
+            originalFileNames.put(fileId, file.getOriginalFilename());
             eventLogService.info("UPLOAD", "Upload complete fileId=" + fileId + " chunks=" + chunkList.size());
 
             return fileId;
@@ -84,6 +86,10 @@ public class ChunkService {
             eventLogService.error("UPLOAD", "Upload failed: " + e.getMessage());
             throw new RuntimeException(e);
         }
+    }
+
+    public synchronized String getOriginalFileName(String fileId) {
+        return originalFileNames.get(fileId);
     }
 
     public synchronized byte[] download(String fileId) {
