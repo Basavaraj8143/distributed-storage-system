@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { getLogs } from "../api";
+import { getLogs, getMasterLogs } from "../api";
 
 const POLL_MS = 5000;
 const LIMIT = 150;
+const MASTER_LOG_LINES = 500;
 
 function formatTime(ts) {
   const d = new Date(ts);
@@ -11,16 +12,23 @@ function formatTime(ts) {
 }
 
 export default function LogsPage() {
+  const [view, setView] = useState("events");
   const [level, setLevel] = useState("ALL");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [logs, setLogs] = useState([]);
+  const [masterLogs, setMasterLogs] = useState("");
   const [lastUpdated, setLastUpdated] = useState("");
 
   const refresh = useCallback(async () => {
     try {
-      const data = await getLogs(level, LIMIT);
-      setLogs(Array.isArray(data) ? data : []);
+      if (view === "master") {
+        const data = await getMasterLogs(MASTER_LOG_LINES);
+        setMasterLogs(data || "");
+      } else {
+        const data = await getLogs(level, LIMIT);
+        setLogs(Array.isArray(data) ? data : []);
+      }
       setLastUpdated(new Date().toLocaleTimeString());
       setError("");
     } catch (err) {
@@ -28,7 +36,7 @@ export default function LogsPage() {
     } finally {
       setLoading(false);
     }
-  }, [level]);
+  }, [level, view]);
 
   useEffect(() => {
     setLoading(true);
@@ -41,17 +49,25 @@ export default function LogsPage() {
     <section className="page">
       <p className="eyebrow">Operations</p>
       <h2>Logs</h2>
-      <p className="page-copy">Structured runtime events with 5-second auto refresh.</p>
+      <p className="page-copy">Structured events and master terminal logs with 5-second auto refresh.</p>
 
       <div className="section-head">
-        <h3>Event Stream</h3>
+        <h3>{view === "master" ? "Master Logs" : "Event Stream"}</h3>
         <div className="logs-controls">
-          <select className="text-input" value={level} onChange={(e) => setLevel(e.target.value)}>
-            <option value="ALL">ALL</option>
-            <option value="INFO">INFO</option>
-            <option value="WARN">WARN</option>
-            <option value="ERROR">ERROR</option>
-          </select>
+          <button className={view === "events" ? "primary-button compact" : "ghost-button"} type="button" onClick={() => setView("events")}>
+            Events
+          </button>
+          <button className={view === "master" ? "primary-button compact" : "ghost-button"} type="button" onClick={() => setView("master")}>
+            Master Logs
+          </button>
+          {view === "events" ? (
+            <select className="text-input" value={level} onChange={(e) => setLevel(e.target.value)}>
+              <option value="ALL">ALL</option>
+              <option value="INFO">INFO</option>
+              <option value="WARN">WARN</option>
+              <option value="ERROR">ERROR</option>
+            </select>
+          ) : null}
           <button className="ghost-button" type="button" onClick={refresh} disabled={loading}>
             {loading ? "Refreshing..." : "Refresh"}
           </button>
@@ -60,7 +76,9 @@ export default function LogsPage() {
 
       {error ? <p className="message error">{error}</p> : null}
 
-      {logs.length === 0 && !loading ? (
+      {view === "master" ? (
+        <pre className="master-log-panel">{masterLogs || "No master log lines available yet."}</pre>
+      ) : logs.length === 0 && !loading ? (
         <article className="placeholder-panel">No log events yet.</article>
       ) : (
         <div className="table-wrap">

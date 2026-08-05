@@ -44,6 +44,7 @@ This file explains what each project-owned file in the repository does.
 - `docs/progress/stage-3-parts-4-6.md`: Documentation for metadata cleanup, under-replication detection, and re-replication workflow.
 - `docs/progress/stage-4-done.md`: Completion note for checksum verification, corruption recovery, and the added integrity test suite.
 - `docs/progress/staged-changes-2026-04-28.md`: Log of a frontend-focused work session that wired upload/download, monitoring, and logs to the backend.
+- `docs/progress/staged-changes-2026-08-04.md`: Log of the persistent metadata migration to SQLite and node count expansion from 3 to 5 nodes.
 - `docs/frontend/workstreams/workspace-a.md`: Empty placeholder file for the frontend shell/routing workstream.
 - `docs/frontend/workstreams/workspace-b.md`: Workstream brief for the centralized frontend API client layer.
 - `docs/frontend/workstreams/workspace-c.md`: Workstream brief for the upload/download user flow pages.
@@ -108,10 +109,16 @@ This file explains what each project-owned file in the repository does.
 - `master-service/src/main/resources/application.properties`: Master configuration for app name, upload size limits, and the configured list of storage-node base URLs.
 - `master-service/src/main/java/com/byteharvest/master/MasterServiceApplication.java`: Spring Boot entry point for the master with scheduling enabled and datasource auto-config disabled.
 - `master-service/src/main/java/com/byteharvest/master/config/AppConfig.java`: Defines the master `RestTemplate` and enables CORS for the Vite frontend on `http://localhost:5173`.
-- `master-service/src/main/java/com/byteharvest/master/model/ChunkMetadata.java`: In-memory metadata model for one chunk: chunk ID, chunk index, replica node URLs, and checksum.
-- `master-service/src/main/java/com/byteharvest/master/model/FileMetadata.java`: In-memory metadata model for one uploaded file and its chunk list.
+- `master-service/src/main/java/com/byteharvest/master/entity/FileMetadataEntity.java`: JPA entity representing an uploaded file.
+- `master-service/src/main/java/com/byteharvest/master/entity/ChunkMetadataEntity.java`: JPA entity representing a chunk of a file.
+- `master-service/src/main/java/com/byteharvest/master/entity/ChunkReplicaEntity.java`: JPA entity tracking which storage nodes hold a chunk replica.
+- `master-service/src/main/java/com/byteharvest/master/repository/FileMetadataRepository.java`: Spring Data repository for file metadata.
+- `master-service/src/main/java/com/byteharvest/master/repository/ChunkMetadataRepository.java`: Spring Data repository for chunk metadata.
+- `master-service/src/main/java/com/byteharvest/master/repository/ChunkReplicaRepository.java`: Spring Data repository for chunk replicas.
+- `master-service/src/main/java/com/byteharvest/master/model/ChunkMetadata.java`: In-memory metadata model for one chunk: chunk ID, chunk index, replica node URLs, and checksum (legacy DTO).
+- `master-service/src/main/java/com/byteharvest/master/model/FileMetadata.java`: In-memory metadata model for one uploaded file and its chunk list (legacy DTO).
 - `master-service/src/main/java/com/byteharvest/master/model/HeartbeatRequest.java`: Request DTO for heartbeat payloads from storage nodes.
-- `master-service/src/main/java/com/byteharvest/master/service/ChunkService.java`: Core master logic for splitting uploads into 1 MB chunks, selecting replica nodes, storing metadata, reconstructing downloads, verifying checksums, removing failed replicas, and repairing under-replicated or corrupted chunks.
+- `master-service/src/main/java/com/byteharvest/master/service/ChunkService.java`: Core master logic for splitting uploads into 1 MB chunks, selecting replica nodes, storing metadata, reconstructing downloads, verifying checksums, removing failed replicas, and repairing under-replicated or corrupted chunks. Now backed by SQLite via JPA.
 - `master-service/src/main/java/com/byteharvest/master/service/EventLogService.java`: In-memory event buffer that records recent INFO/WARN/ERROR events for the logs API.
 - `master-service/src/main/java/com/byteharvest/master/service/HeartbeatService.java`: Tracks node liveness, last-seen timestamps, node URL mappings, and scheduled failure detection.
 - `master-service/src/main/java/com/byteharvest/master/service/ReplicationRepairService.java`: Scheduled repair coordinator that removes dead replica references, repairs corrupt replicas, and restores missing replicas.

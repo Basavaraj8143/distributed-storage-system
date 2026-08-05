@@ -22,6 +22,7 @@ This folder now contains the project documentation that was previously split acr
   - `stage-3-parts-1-3.md`
   - `stage-3-parts-4-6.md`
   - `stage-4-done.md`
+  - `stage-4-5-demo-readiness.md`
   - `staged-changes-2026-04-28.md`
 - `frontend/workstreams/`
   - `workspace-a.md`

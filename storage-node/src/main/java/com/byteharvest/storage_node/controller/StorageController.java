@@ -16,6 +16,12 @@ public class StorageController {
     @Value("${server.port:5001}")
     private String serverPort;
 
+    private final com.byteharvest.storage_node.service.HeartbeatSenderService heartbeatSenderService;
+
+    public StorageController(com.byteharvest.storage_node.service.HeartbeatSenderService heartbeatSenderService) {
+        this.heartbeatSenderService = heartbeatSenderService;
+    }
+
     private Path getChunkPath(String chunkId) {
         String port = serverPort;
         String fileName = "chunk_" + chunkId;
@@ -31,6 +37,10 @@ public class StorageController {
     public ResponseEntity<String> storeChunk(
             @RequestParam("chunkId") String chunkId,
             @RequestParam("file") MultipartFile file) {
+
+        if (heartbeatSenderService.isOffline()) {
+            return ResponseEntity.status(503).body("Node is offline");
+        }
 
         try {
             Path path = getChunkPath(chunkId);
@@ -50,6 +60,10 @@ public class StorageController {
 
     @GetMapping("/getChunk/{chunkId}")
     public ResponseEntity<byte[]> getChunk(@PathVariable String chunkId) {
+
+        if (heartbeatSenderService.isOffline()) {
+            return ResponseEntity.status(503).build();
+        }
 
         try {
             Path path = getChunkPath(chunkId);

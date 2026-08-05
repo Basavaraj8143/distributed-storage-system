@@ -433,6 +433,26 @@ body {
   min-width: 120px;
 }
 
+.primary-button.compact {
+  width: auto;
+  padding: 0.65rem 0.9rem;
+}
+
+.master-log-panel {
+  margin: 0.75rem 0 0;
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid #26323a;
+  border-radius: 16px;
+  background: #111820;
+  color: #e7edf2;
+  padding: 1rem;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 .home-link {
   display: inline-block;
   margin-top: 0.2rem;

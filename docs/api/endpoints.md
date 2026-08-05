@@ -47,7 +47,7 @@ curl -X POST "http://localhost:8080/upload" \
 - **Status:** `200`
 - **Body:** raw file bytes
 - **Headers (current):**
-  - `Content-Disposition: attachment; filename=output.pdf`
+  - `Content-Disposition`: attachment filename based on the original uploaded filename when available
   - `Content-Type: application/octet-stream`
 
 #### Example cURL

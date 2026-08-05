@@ -5,6 +5,7 @@ import UploadPage from "./pages/UploadPage";
 import FilesPage from "./pages/FilesPage";
 import NodeStatusPage from "./pages/NodeStatusPage";
 import LogsPage from "./pages/LogsPage";
+import SimulationPage from "./pages/SimulationPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/files" element={<FilesPage />} />
         <Route path="/nodes" element={<NodeStatusPage />} />
         <Route path="/logs" element={<LogsPage />} />
+        <Route path="/simulation" element={<SimulationPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AppShell>

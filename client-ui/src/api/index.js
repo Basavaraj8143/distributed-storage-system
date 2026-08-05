@@ -6,7 +6,8 @@ const ENDPOINTS = {
   download: import.meta.env.VITE_API_DOWNLOAD_PATH || "/download",
   nodeStatus: import.meta.env.VITE_API_NODE_STATUS_PATH || "/nodes/status",
   systemHealth: import.meta.env.VITE_API_SYSTEM_HEALTH_PATH || "/system/health",
-  logs: import.meta.env.VITE_API_LOGS_PATH || "/logs"
+  logs: import.meta.env.VITE_API_LOGS_PATH || "/logs",
+  masterLogs: import.meta.env.VITE_API_MASTER_LOGS_PATH || "/logs/master"
 };
 
 const MOCK_DELAY_MS = Number(import.meta.env.VITE_MOCK_DELAY_MS || 250);
@@ -58,6 +59,12 @@ async function requestBlob(path, options = {}) {
   };
 }
 
+async function requestText(path, options = {}) {
+  const response = await fetch(`${BASE_URL}${path}`, options);
+  if (!response.ok) throw await parseError(response);
+  return response.text();
+}
+
 function normalizeUploadResponse(raw) {
   if (!raw) throw createError("Upload response is empty");
 
@@ -73,7 +80,9 @@ const mockData = {
   nodeStatus: [
     { nodeId: "node-1", status: "ACTIVE", lastHeartbeat: Date.now(), nodeUrl: "http://localhost:5001" },
     { nodeId: "node-2", status: "ACTIVE", lastHeartbeat: Date.now(), nodeUrl: "http://localhost:5002" },
-    { nodeId: "node-3", status: "FAILED", lastHeartbeat: Date.now() - 30000, nodeUrl: "http://localhost:5003" }
+    { nodeId: "node-3", status: "FAILED", lastHeartbeat: Date.now() - 30000, nodeUrl: "http://localhost:5003" },
+    { nodeId: "node-4", status: "ACTIVE", lastHeartbeat: Date.now(), nodeUrl: "http://localhost:5004" },
+    { nodeId: "node-5", status: "ACTIVE", lastHeartbeat: Date.now(), nodeUrl: "http://localhost:5005" }
   ],
   systemHealth: {
     status: "DEGRADED",
@@ -143,6 +152,38 @@ export async function getLogs(level = "ALL", limit = 100) {
     limit: String(limit)
   });
   return requestJson(`${ENDPOINTS.logs}?${params.toString()}`);
+}
+
+export async function getMasterLogs(lines = 500) {
+  if (USE_MOCK_API) {
+    await sleep(MOCK_DELAY_MS);
+    return [
+      "2026-07-28T09:00:00.000+05:30  INFO 12345 --- [master-service] Started MasterServiceApplication",
+      "2026-07-28T09:00:05.000+05:30  INFO 12345 --- [master-service] Heartbeat received from node-1 (http://localhost:5001)",
+      "2026-07-28T09:00:10.000+05:30  WARN 12345 --- [master-service] Node FAILED: node-3"
+    ].join("\n");
+  }
+
+  const params = new URLSearchParams({
+    lines: String(lines)
+  });
+  return requestText(`${ENDPOINTS.masterLogs}?${params.toString()}`);
+}
+
+export async function simulateNodeOffline(nodeId) {
+  if (USE_MOCK_API) {
+    await sleep(MOCK_DELAY_MS);
+    return;
+  }
+  return requestText(`/api/simulation/nodes/${nodeId}/offline`, { method: "POST" });
+}
+
+export async function simulateNodeOnline(nodeId) {
+  if (USE_MOCK_API) {
+    await sleep(MOCK_DELAY_MS);
+    return;
+  }
+  return requestText(`/api/simulation/nodes/${nodeId}/online`, { method: "POST" });
 }
 
 export const apiConfig = {

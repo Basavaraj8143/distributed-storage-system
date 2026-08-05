@@ -5,7 +5,8 @@ const navItems = [
   { to: "/upload", label: "Upload" },
   { to: "/files", label: "Files" },
   { to: "/nodes", label: "Node Status" },
-  { to: "/logs", label: "Logs" }
+  { to: "/logs", label: "Logs" },
+  { to: "/simulation", label: "Chaos Simulator" }
 ];
 
 export default function SideNav({ mobileOpen, onNavigate }) {

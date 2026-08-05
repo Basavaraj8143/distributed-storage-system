@@ -1,15 +1,20 @@
 package com.byteharvest.master.service;
 
-import com.byteharvest.master.model.ChunkMetadata;
+import com.byteharvest.master.entity.ChunkMetadataEntity;
+import com.byteharvest.master.entity.ChunkReplicaEntity;
+import com.byteharvest.master.entity.FileMetadataEntity;
+import com.byteharvest.master.repository.ChunkMetadataRepository;
+import com.byteharvest.master.repository.ChunkReplicaRepository;
+import com.byteharvest.master.repository.FileMetadataRepository;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.*;
 import org.springframework.web.client.RestTemplate;
-
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
@@ -25,11 +30,15 @@ public class ChunkService {
     private RestTemplate restTemplate;
     @Autowired
     private EventLogService eventLogService;
+    
+    @Autowired
+    private FileMetadataRepository fileMetadataRepository;
+    @Autowired
+    private ChunkMetadataRepository chunkMetadataRepository;
+    @Autowired
+    private ChunkReplicaRepository chunkReplicaRepository;
 
-    private Map<String, List<ChunkMetadata>> storage = new HashMap<>();
-    private Map<String, String> originalFileNames = new HashMap<>();
-
-    @Value("${storage.nodes:http://localhost:5001,http://localhost:5002,http://localhost:5003}")
+    @Value("${storage.nodes:http://localhost:5001,http://localhost:5002,http://localhost:5003,http://localhost:5004,http://localhost:5005}")
     private String configuredNodes;
 
     private List<String> nodes;
@@ -48,13 +57,18 @@ public class ChunkService {
         nodes = parsedNodes;
     }
 
-    public synchronized String handleUpload(MultipartFile file) {
+    @Transactional
+    public String handleUpload(MultipartFile file) {
         try {
             byte[] fileBytes = file.getBytes();
             int chunkSize = 1024 * 1024;
 
             String fileId = UUID.randomUUID().toString();
-            List<ChunkMetadata> chunkList = new ArrayList<>();
+            
+            FileMetadataEntity fileEntity = new FileMetadataEntity();
+            fileEntity.setFileId(fileId);
+            fileEntity.setOriginalFilename(file.getOriginalFilename());
+            fileEntity = fileMetadataRepository.save(fileEntity);
 
             int chunkIndex = 0;
 
@@ -71,14 +85,25 @@ public class ChunkService {
                     sendChunkToNode(nodeUrl, chunkId, chunk);
                 }
 
-                chunkList.add(new ChunkMetadata(chunkId, chunkIndex, selectedNodes, checksum));
+                ChunkMetadataEntity chunkEntity = new ChunkMetadataEntity();
+                chunkEntity.setChunkId(chunkId);
+                chunkEntity.setChunkIndex(chunkIndex);
+                chunkEntity.setChecksum(checksum);
+                chunkEntity.setFileMetadata(fileEntity);
+                
+                for (String nodeUrl : selectedNodes) {
+                    ChunkReplicaEntity replicaEntity = new ChunkReplicaEntity();
+                    replicaEntity.setNodeUrl(nodeUrl);
+                    replicaEntity.setChunkMetadata(chunkEntity);
+                    chunkEntity.getReplicas().add(replicaEntity);
+                }
+
+                chunkMetadataRepository.save(chunkEntity);
 
                 chunkIndex++;
             }
 
-            storage.put(fileId, chunkList);
-            originalFileNames.put(fileId, file.getOriginalFilename());
-            eventLogService.info("UPLOAD", "Upload complete fileId=" + fileId + " chunks=" + chunkList.size());
+            eventLogService.info("UPLOAD", "Upload complete fileId=" + fileId + " chunks=" + chunkIndex);
 
             return fileId;
 
@@ -88,23 +113,26 @@ public class ChunkService {
         }
     }
 
-    public synchronized String getOriginalFileName(String fileId) {
-        return originalFileNames.get(fileId);
+    @Transactional(readOnly = true)
+    public String getOriginalFileName(String fileId) {
+        Optional<FileMetadataEntity> opt = fileMetadataRepository.findById(fileId);
+        return opt.map(FileMetadataEntity::getOriginalFilename).orElse(null);
     }
 
-    public synchronized byte[] download(String fileId) {
+    @Transactional(readOnly = true)
+    public byte[] download(String fileId) {
         try {
-            List<ChunkMetadata> chunks = storage.get(fileId);
-
-            if (chunks == null) {
+            Optional<FileMetadataEntity> fileOpt = fileMetadataRepository.findById(fileId);
+            if (fileOpt.isEmpty()) {
                 throw new RuntimeException("File not found");
             }
 
-            chunks.sort(Comparator.comparingInt(ChunkMetadata::getChunkIndex));
+            List<ChunkMetadataEntity> chunks = fileOpt.get().getChunks();
+            chunks.sort(Comparator.comparingInt(ChunkMetadataEntity::getChunkIndex));
 
             ByteArrayOutputStream output = new ByteArrayOutputStream();
 
-            for (ChunkMetadata chunk : chunks) {
+            for (ChunkMetadataEntity chunk : chunks) {
                 byte[] data = fetchChunkFromReplicas(chunk);
                 output.write(data);
             }
@@ -118,75 +146,87 @@ public class ChunkService {
         }
     }
 
-    public synchronized int removeFailedNodeReferences(Set<String> failedNodeUrls) {
+    @Transactional
+    public int removeFailedNodeReferences(Set<String> failedNodeUrls) {
         if (failedNodeUrls == null || failedNodeUrls.isEmpty()) {
             return 0;
         }
 
         int updatedChunks = 0;
-        for (List<ChunkMetadata> chunks : storage.values()) {
-            for (ChunkMetadata chunk : chunks) {
-                List<String> currentUrls = new ArrayList<>(chunk.getNodeUrls());
-                List<String> filteredUrls = currentUrls.stream()
-                        .filter(nodeUrl -> !failedNodeUrls.contains(nodeUrl))
-                        .distinct()
-                        .collect(Collectors.toCollection(ArrayList::new));
-
-                if (!filteredUrls.equals(currentUrls)) {
-                    chunk.setNodeUrls(filteredUrls);
-                    updatedChunks++;
+        List<ChunkMetadataEntity> allChunks = chunkMetadataRepository.findAll();
+        
+        for (ChunkMetadataEntity chunk : allChunks) {
+            boolean modified = false;
+            Iterator<ChunkReplicaEntity> it = chunk.getReplicas().iterator();
+            while (it.hasNext()) {
+                ChunkReplicaEntity replica = it.next();
+                if (failedNodeUrls.contains(replica.getNodeUrl())) {
+                    it.remove();
+                    modified = true;
                 }
+            }
+            if (modified) {
+                chunkMetadataRepository.save(chunk);
+                updatedChunks++;
             }
         }
 
         return updatedChunks;
     }
 
-    public synchronized int repairUnderReplicatedChunks(Set<String> activeNodeUrls) {
+    @Transactional
+    public int repairUnderReplicatedChunks(Set<String> activeNodeUrls) {
         if (activeNodeUrls == null || activeNodeUrls.isEmpty()) {
             return 0;
         }
 
         int repairedReplicas = 0;
+        List<ChunkMetadataEntity> allChunks = chunkMetadataRepository.findAll();
 
-        for (List<ChunkMetadata> chunks : storage.values()) {
-            for (ChunkMetadata chunk : chunks) {
-                List<String> replicas = new ArrayList<>(new LinkedHashSet<>(chunk.getNodeUrls()));
+        for (ChunkMetadataEntity chunk : allChunks) {
+            List<String> replicas = chunk.getReplicas().stream()
+                    .map(ChunkReplicaEntity::getNodeUrl)
+                    .distinct()
+                    .collect(Collectors.toList());
 
-                if (replicas.size() >= REPLICATION_FACTOR) {
-                    continue;
-                }
-
-                byte[] chunkData = tryFetchChunk(chunk.getChunkId(), replicas);
-                if (chunkData == null) {
-                    continue;
-                }
-
-                Set<String> candidateTargets = new LinkedHashSet<>(activeNodeUrls);
-                candidateTargets.removeAll(replicas);
-
-                while (replicas.size() < REPLICATION_FACTOR && !candidateTargets.isEmpty()) {
-                    String targetNode = candidateTargets.iterator().next();
-                    candidateTargets.remove(targetNode);
-
-                    try {
-                        sendChunkToNode(targetNode, chunk.getChunkId(), chunkData);
-                        replicas.add(targetNode);
-                        repairedReplicas++;
-                    } catch (Exception ignored) {
-                        // Best effort: try another target.
-                    }
-                }
-
-                chunk.setNodeUrls(replicas);
+            if (replicas.size() >= REPLICATION_FACTOR) {
+                continue;
             }
+
+            byte[] chunkData = tryFetchChunk(chunk.getChunkId(), replicas);
+            if (chunkData == null) {
+                continue;
+            }
+
+            Set<String> candidateTargets = new LinkedHashSet<>(activeNodeUrls);
+            candidateTargets.removeAll(replicas);
+
+            while (replicas.size() < REPLICATION_FACTOR && !candidateTargets.isEmpty()) {
+                String targetNode = candidateTargets.iterator().next();
+                candidateTargets.remove(targetNode);
+
+                try {
+                    sendChunkToNode(targetNode, chunk.getChunkId(), chunkData);
+                    replicas.add(targetNode);
+                    
+                    ChunkReplicaEntity newReplica = new ChunkReplicaEntity();
+                    newReplica.setNodeUrl(targetNode);
+                    newReplica.setChunkMetadata(chunk);
+                    chunk.getReplicas().add(newReplica);
+                    
+                    repairedReplicas++;
+                } catch (Exception ignored) {
+                    // Best effort: try another target.
+                }
+            }
+
+            chunkMetadataRepository.save(chunk);
         }
 
         return repairedReplicas;
     }
 
     private void sendChunkToNode(String nodeUrl, String chunkId, byte[] chunk) {
-
         String url = nodeUrl + "/storeChunk";
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
@@ -219,10 +259,13 @@ public class ChunkService {
         return new ArrayList<>(shuffledNodes.subList(0, REPLICATION_FACTOR));
     }
 
-    private byte[] fetchChunkFromReplicas(ChunkMetadata chunk) {
+    private byte[] fetchChunkFromReplicas(ChunkMetadataEntity chunk) {
         String chunkId = chunk.getChunkId();
         String expectedChecksum = chunk.getChecksum();
-        List<String> nodeUrls = new ArrayList<>(chunk.getNodeUrls());
+        List<String> nodeUrls = chunk.getReplicas().stream()
+                .map(ChunkReplicaEntity::getNodeUrl)
+                .collect(Collectors.toList());
+                
         List<String> corruptedNodes = new ArrayList<>();
         byte[] validData = null;
 
@@ -251,9 +294,14 @@ public class ChunkService {
                     sendChunkToNode(corruptNodeUrl, chunkId, validData);
                     eventLogService.info("INTEGRITY", "Repaired corrupted chunk " + chunkId + " on node " + corruptNodeUrl);
                 } catch (Exception e) {
-                    List<String> updatedNodeUrls = new ArrayList<>(chunk.getNodeUrls());
-                    updatedNodeUrls.remove(corruptNodeUrl);
-                    chunk.setNodeUrls(updatedNodeUrls);
+                    Iterator<ChunkReplicaEntity> it = chunk.getReplicas().iterator();
+                    while(it.hasNext()){
+                        if (it.next().getNodeUrl().equals(corruptNodeUrl)) {
+                            it.remove();
+                            break;
+                        }
+                    }
+                    chunkMetadataRepository.save(chunk);
                     eventLogService.warn("INTEGRITY", "Failed to overwrite corrupted chunk on " + corruptNodeUrl + ", removed replica reference");
                 }
             }
@@ -278,77 +326,85 @@ public class ChunkService {
         return null;
     }
 
-    public synchronized int verifyAndRepairCorruptions(Set<String> activeNodeUrls) {
+    @Transactional
+    public int verifyAndRepairCorruptions(Set<String> activeNodeUrls) {
         if (activeNodeUrls == null || activeNodeUrls.isEmpty()) {
             return 0;
         }
 
         int repairedCount = 0;
+        List<ChunkMetadataEntity> allChunks = chunkMetadataRepository.findAll();
 
-        for (List<ChunkMetadata> chunks : storage.values()) {
-            for (ChunkMetadata chunk : chunks) {
-                String chunkId = chunk.getChunkId();
-                String expectedChecksum = chunk.getChecksum();
-                List<String> replicas = new ArrayList<>(chunk.getNodeUrls());
-                List<String> corruptedNodes = new ArrayList<>();
-                byte[] validData = null;
+        for (ChunkMetadataEntity chunk : allChunks) {
+            String chunkId = chunk.getChunkId();
+            String expectedChecksum = chunk.getChecksum();
+            List<String> replicas = chunk.getReplicas().stream()
+                    .map(ChunkReplicaEntity::getNodeUrl)
+                    .collect(Collectors.toList());
+                    
+            List<String> corruptedNodes = new ArrayList<>();
+            byte[] validData = null;
 
-                for (String nodeUrl : replicas) {
-                    if (!activeNodeUrls.contains(nodeUrl)) {
-                        continue;
-                    }
+            for (String nodeUrl : replicas) {
+                if (!activeNodeUrls.contains(nodeUrl)) {
+                    continue;
+                }
 
-                    try {
-                        String url = nodeUrl + "/getChunk/" + chunkId;
-                        byte[] data = restTemplate.getForObject(url, byte[].class);
-                        if (data != null) {
-                            String actualChecksum = calculateSha256(data);
-                            if (actualChecksum.equals(expectedChecksum)) {
-                                if (validData == null) {
-                                    validData = data;
-                                }
-                            } else {
-                                corruptedNodes.add(nodeUrl);
+                try {
+                    String url = nodeUrl + "/getChunk/" + chunkId;
+                    byte[] data = restTemplate.getForObject(url, byte[].class);
+                    if (data != null) {
+                        String actualChecksum = calculateSha256(data);
+                        if (actualChecksum.equals(expectedChecksum)) {
+                            if (validData == null) {
+                                validData = data;
                             }
                         } else {
                             corruptedNodes.add(nodeUrl);
                         }
-                    } catch (Exception e) {
-                        // ignore/skip
+                    } else {
+                        corruptedNodes.add(nodeUrl);
+                    }
+                } catch (Exception e) {
+                    // ignore/skip
+                }
+            }
+
+            if (!corruptedNodes.isEmpty()) {
+                if (validData == null) {
+                    for (String nodeUrl : replicas) {
+                        try {
+                            String url = nodeUrl + "/getChunk/" + chunkId;
+                            byte[] data = restTemplate.getForObject(url, byte[].class);
+                            if (data != null && calculateSha256(data).equals(expectedChecksum)) {
+                                validData = data;
+                                break;
+                            }
+                        } catch (Exception ignored) {}
                     }
                 }
 
-                if (!corruptedNodes.isEmpty()) {
-                    if (validData == null) {
-                        for (String nodeUrl : replicas) {
-                            try {
-                                String url = nodeUrl + "/getChunk/" + chunkId;
-                                byte[] data = restTemplate.getForObject(url, byte[].class);
-                                if (data != null && calculateSha256(data).equals(expectedChecksum)) {
-                                    validData = data;
+                if (validData != null) {
+                    for (String corruptNodeUrl : corruptedNodes) {
+                        try {
+                            sendChunkToNode(corruptNodeUrl, chunkId, validData);
+                            eventLogService.info("INTEGRITY", "Scheduled repair: fixed corrupted chunk " + chunkId + " on node " + corruptNodeUrl);
+                            repairedCount++;
+                        } catch (Exception e) {
+                            Iterator<ChunkReplicaEntity> it = chunk.getReplicas().iterator();
+                            while(it.hasNext()){
+                                if (it.next().getNodeUrl().equals(corruptNodeUrl)) {
+                                    it.remove();
                                     break;
                                 }
-                            } catch (Exception ignored) {}
-                        }
-                    }
-
-                    if (validData != null) {
-                        for (String corruptNodeUrl : corruptedNodes) {
-                            try {
-                                sendChunkToNode(corruptNodeUrl, chunkId, validData);
-                                eventLogService.info("INTEGRITY", "Scheduled repair: fixed corrupted chunk " + chunkId + " on node " + corruptNodeUrl);
-                                repairedCount++;
-                            } catch (Exception e) {
-                                List<String> updatedNodeUrls = new ArrayList<>(chunk.getNodeUrls());
-                                updatedNodeUrls.remove(corruptNodeUrl);
-                                chunk.setNodeUrls(updatedNodeUrls);
-                                eventLogService.warn("INTEGRITY", "Scheduled repair: failed to overwrite corrupted chunk on " + corruptNodeUrl + ", removed replica reference");
-                                repairedCount++;
                             }
+                            chunkMetadataRepository.save(chunk);
+                            eventLogService.warn("INTEGRITY", "Scheduled repair: failed to overwrite corrupted chunk on " + corruptNodeUrl + ", removed replica reference");
+                            repairedCount++;
                         }
-                    } else {
-                        eventLogService.error("INTEGRITY", "CRITICAL: All replicas for chunk " + chunkId + " are corrupted or unreachable!");
                     }
+                } else {
+                    eventLogService.error("INTEGRITY", "CRITICAL: All replicas for chunk " + chunkId + " are corrupted or unreachable!");
                 }
             }
         }

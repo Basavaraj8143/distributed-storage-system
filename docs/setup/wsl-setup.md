@@ -97,11 +97,11 @@ java -jar target/*.jar
 ```bash
 cd /mnt/d/projects/final/storage-node
 
-java -jar target/*.jar --server.port=5001 --storage.base-dir=/mnt/d/projects/final/storage_5001 --node.id=node-1
+java -jar target/*.jar --server.port=5001 --storage.base-dir=/mnt/d/projects/final
 
-java -jar target/*.jar --server.port=5002 --storage.base-dir=/mnt/d/projects/final/storage_5002 --node.id=node-2
+java -jar target/*.jar --server.port=5002 --storage.base-dir=/mnt/d/projects/final
 
-java -jar target/*.jar --server.port=5003 --storage.base-dir=/mnt/d/projects/final/storage_5003 --node.id=node-3
+java -jar target/*.jar --server.port=5003 --storage.base-dir=/mnt/d/projects/final
 ```
 
 ---
@@ -152,7 +152,10 @@ mvn clean package
 * Each node must use:
 
     * different port
-    * different storage directory
+    * same project base directory, or empty `storage.base-dir`
+
+The storage-node service automatically creates separate folders named
+`storage_5001`, `storage_5002`, and `storage_5003` from the port.
 
 ---
 
