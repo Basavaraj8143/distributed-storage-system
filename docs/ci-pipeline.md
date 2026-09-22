@@ -48,20 +48,20 @@ This job uses a matrix so it runs once for each backend service:
 For each service, it does the following:
 
 1. Checks out the repository
-2. Sets up Java `21` using Temurin
+2. Sets up Java `17` using Temurin
 3. Restores Maven cache
-4. Makes the Maven wrapper executable
-5. Runs `./mvnw test`
-6. Runs `./mvnw package -DskipTests`
+4. Prints the Maven version available on the runner
+5. Runs `mvn -B --no-transfer-progress test`
+6. Runs `mvn -B --no-transfer-progress package -DskipTests`
 
 Purpose:
 
 - Verifies unit and Spring context tests pass
 - Verifies each Java service can be packaged successfully
 
-## Why Java 21
+## Why Java 17
 
-The workflow currently uses Java `21` because the `storage-node` service is based on Spring Boot `4.0.5`, which is better aligned with a newer JDK than older Java versions.
+The workflow currently uses Java `17` because both backend services compile with `<java.version>17</java.version>`.
 
 ## Current Coverage
 
@@ -104,16 +104,16 @@ npm run build
 
 ```bash
 cd master-service
-./mvnw test
-./mvnw package -DskipTests
+mvn -B --no-transfer-progress test
+mvn -B --no-transfer-progress package -DskipTests
 ```
 
 ### Storage Node
 
 ```bash
 cd storage-node
-./mvnw test
-./mvnw package -DskipTests
+mvn -B --no-transfer-progress test
+mvn -B --no-transfer-progress package -DskipTests
 ```
 
 ## Summary
