@@ -57,7 +57,7 @@ export default function FilesPage() {
       link.href = downloadUrl;
       const serverFilename = parseFilenameFromContentDisposition(result.contentDisposition);
       const fallbackName = `download-${fileId}${extensionFromContentType(result.contentType)}`;
-      link.download = filenameHint || serverFilename || fallbackName;
+      link.download = serverFilename || filenameHint || fallbackName;
       document.body.appendChild(link);
       link.click();
       link.remove();

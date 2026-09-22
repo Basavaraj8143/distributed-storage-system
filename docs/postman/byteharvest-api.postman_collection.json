@@ -1,0 +1,369 @@
+{
+  "info": {
+    "_postman_id": "c1f95fb2-7f88-4a0b-8bfb-2b9d514d4f47",
+    "name": "ByteHarvest API",
+    "description": "Import-ready Postman collection generated from the ByteHarvest master-service and storage-node controllers.\n\nUse with the `ByteHarvest Local` environment.\n\nTypical flow:\n1. Start the master service on port 8080.\n2. Start one or more storage nodes, usually on ports 5001, 5002, and 5003.\n3. Use `Upload File` and select a local file for the `file` form-data field.\n4. The upload response body is saved automatically into the `fileId` environment variable.\n5. Use `Download File` with the saved `fileId`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Master Service",
+      "item": [
+        {
+          "name": "Upload File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 && pm.response.text()) {",
+                  "  pm.environment.set('fileId', pm.response.text());",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Select any file to upload. Field name must be `file`."
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{masterBaseUrl}}/upload",
+              "host": [
+                "{{masterBaseUrl}}"
+              ],
+              "path": [
+                "upload"
+              ]
+            },
+            "description": "Uploads a file to the master service. The master splits it into chunks and stores replicas on configured storage nodes. Response body is the generated fileId."
+          },
+          "response": []
+        },
+        {
+          "name": "Download File",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{masterBaseUrl}}/download/{{fileId}}",
+              "host": [
+                "{{masterBaseUrl}}"
+              ],
+              "path": [
+                "download",
+                "{{fileId}}"
+              ]
+            },
+            "description": "Downloads a previously uploaded file by fileId. Save the response as a file in Postman."
+          },
+          "response": []
+        },
+        {
+          "name": "Send Heartbeat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nodeId\": \"{{nodeId}}\",\n  \"nodeUrl\": \"{{nodeBaseUrl}}\"\n}"
+            },
+            "url": {
+              "raw": "{{masterBaseUrl}}/heartbeat",
+              "host": [
+                "{{masterBaseUrl}}"
+              ],
+              "path": [
+                "heartbeat"
+              ]
+            },
+            "description": "Registers or refreshes a storage node heartbeat. Body is based on HeartbeatRequest.java."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Node Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{masterBaseUrl}}/nodes/status",
+              "host": [
+                "{{masterBaseUrl}}"
+              ],
+              "path": [
+                "nodes",
+                "status"
+              ]
+            },
+            "description": "Returns known nodes with nodeId, nodeUrl, lastHeartbeat, and status."
+          },
+          "response": []
+        },
+        {
+          "name": "Get System Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{masterBaseUrl}}/system/health",
+              "host": [
+                "{{masterBaseUrl}}"
+              ],
+              "path": [
+                "system",
+                "health"
+              ]
+            },
+            "description": "Returns aggregate master health, active node count, failed node count, and node id sets."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Event Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{masterBaseUrl}}/logs?level={{logLevel}}&limit={{logLimit}}",
+              "host": [
+                "{{masterBaseUrl}}"
+              ],
+              "path": [
+                "logs"
+              ],
+              "query": [
+                {
+                  "key": "level",
+                  "value": "{{logLevel}}",
+                  "description": "Use ALL or a specific event level."
+                },
+                {
+                  "key": "limit",
+                  "value": "{{logLimit}}"
+                }
+              ]
+            },
+            "description": "Returns recent in-memory event logs."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Master Log File Tail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{masterBaseUrl}}/logs/master?lines={{masterLogLines}}",
+              "host": [
+                "{{masterBaseUrl}}"
+              ],
+              "path": [
+                "logs",
+                "master"
+              ],
+              "query": [
+                {
+                  "key": "lines",
+                  "value": "{{masterLogLines}}"
+                }
+              ]
+            },
+            "description": "Returns the tail of logs/master-service.log as text/plain."
+          },
+          "response": []
+        },
+        {
+          "name": "Simulate Node Offline Through Master",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{masterBaseUrl}}/api/simulation/nodes/{{nodeId}}/offline",
+              "host": [
+                "{{masterBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "simulation",
+                "nodes",
+                "{{nodeId}}",
+                "offline"
+              ]
+            },
+            "description": "Asks the master to call the target node's /simulate/offline endpoint. The node must be known from heartbeat."
+          },
+          "response": []
+        },
+        {
+          "name": "Simulate Node Online Through Master",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{masterBaseUrl}}/api/simulation/nodes/{{nodeId}}/online",
+              "host": [
+                "{{masterBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "simulation",
+                "nodes",
+                "{{nodeId}}",
+                "online"
+              ]
+            },
+            "description": "Asks the master to call the target node's /simulate/online endpoint. The node must be known from heartbeat."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Storage Node",
+      "item": [
+        {
+          "name": "Store Chunk Directly",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "chunkId",
+                  "value": "{{chunkId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Select a local file/chunk. Field name must be `file`."
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{nodeBaseUrl}}/storeChunk",
+              "host": [
+                "{{nodeBaseUrl}}"
+              ],
+              "path": [
+                "storeChunk"
+              ]
+            },
+            "description": "Stores one chunk directly on a storage node. The master normally calls this during upload."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Chunk Directly",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{nodeBaseUrl}}/getChunk/{{chunkId}}",
+              "host": [
+                "{{nodeBaseUrl}}"
+              ],
+              "path": [
+                "getChunk",
+                "{{chunkId}}"
+              ]
+            },
+            "description": "Reads a stored chunk directly from one storage node."
+          },
+          "response": []
+        },
+        {
+          "name": "Simulate This Node Offline",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{nodeBaseUrl}}/simulate/offline",
+              "host": [
+                "{{nodeBaseUrl}}"
+              ],
+              "path": [
+                "simulate",
+                "offline"
+              ]
+            },
+            "description": "Directly puts this storage node into simulated offline mode."
+          },
+          "response": []
+        },
+        {
+          "name": "Simulate This Node Online",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{nodeBaseUrl}}/simulate/online",
+              "host": [
+                "{{nodeBaseUrl}}"
+              ],
+              "path": [
+                "simulate",
+                "online"
+              ]
+            },
+            "description": "Directly brings this storage node back online."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "masterBaseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "nodeBaseUrl",
+      "value": "http://localhost:5001"
+    },
+    {
+      "key": "nodeId",
+      "value": "node-1"
+    },
+    {
+      "key": "fileId",
+      "value": ""
+    },
+    {
+      "key": "chunkId",
+      "value": "sample-chunk"
+    },
+    {
+      "key": "logLevel",
+      "value": "ALL"
+    },
+    {
+      "key": "logLimit",
+      "value": "100"
+    },
+    {
+      "key": "masterLogLines",
+      "value": "500"
+    }
+  ]
+}
