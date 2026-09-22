@@ -40,9 +40,11 @@ nbdist/
 .DS_Store
 Thumbs.db
 
-# Local storage/data
+# Local storage/data (top-level data dirs only, NOT the storage_node Java package)
 storage/
-storage_*/
+/storage_5001/
+/storage_5002/
+/storage_5003/
 
 # Frontend (client-ui)
 client-ui/node_modules/
