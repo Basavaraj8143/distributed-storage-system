@@ -9,6 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class MasterServiceApplication {
 
 	public static void main(String[] args) {
+
 		SpringApplication.run(MasterServiceApplication.class, args);
 	}
 }
