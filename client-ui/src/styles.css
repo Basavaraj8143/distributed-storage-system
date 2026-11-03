@@ -453,6 +453,443 @@ body {
   white-space: pre-wrap;
 }
 
+.simulator-page {
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.simulator-heading,
+.sim-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.simulator-heading {
+  margin-bottom: 1.15rem;
+}
+
+.simulator-heading h2 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 2.35rem);
+}
+
+.simulator-heading .page-copy {
+  margin: 0.45rem 0 0;
+}
+
+.simulator-refresh {
+  flex: 0 0 auto;
+}
+
+.simulator-refresh span {
+  margin-right: 0.3rem;
+  font-size: 1rem;
+}
+
+.simulator-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin: 1.25rem 0;
+}
+
+.sim-metric-card {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 5px 16px rgba(27, 42, 40, 0.045);
+}
+
+.sim-metric-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #e9f2ef;
+  color: #27675c;
+  font-size: 1.25rem;
+}
+
+.sim-icon-green { background: #e8f7f2; color: #26715f; font-size: 0.75rem; }
+.sim-icon-red { background: #fdeceb; color: #a33e34; font-size: 0.75rem; }
+.sim-icon-amber { background: #fff4dd; color: #936a17; }
+
+.sim-metric-card p {
+  margin: 0 0 0.2rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.sim-metric-card strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 1.02rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sim-metric-card small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.simulator-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(290px, 0.9fr);
+  align-items: start;
+  gap: 1rem;
+}
+
+.simulator-main-column {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.simulator-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 7px 20px rgba(27, 42, 40, 0.055);
+}
+
+.sim-panel-heading {
+  padding: 1.1rem 1.2rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.sim-panel-heading .eyebrow {
+  margin: 0 0 0.2rem;
+  color: var(--accent-2);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.sim-panel-heading h3 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+
+.sim-live-label,
+.sim-panel-hint {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.sim-live-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.sim-live-label i,
+.sim-master-status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2e9b78;
+  box-shadow: 0 0 0 3px rgba(46, 155, 120, 0.14);
+}
+
+.sim-topology {
+  padding: 1.3rem 1.2rem 1rem;
+  background: linear-gradient(180deg, rgba(239, 248, 243, 0.52), transparent 70%);
+}
+
+.sim-master-node {
+  width: min(100%, 300px);
+  min-height: 68px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #bdd8cb;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 5px 14px rgba(31, 94, 86, 0.07);
+}
+
+.sim-node-symbol {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: #1f5e56;
+  color: #fff;
+  font-weight: 700;
+}
+
+.sim-master-node > div { display: grid; gap: 0.15rem; }
+.sim-master-node strong { font-size: 0.9rem; }
+.sim-master-node > div span { color: var(--muted); font-size: 0.7rem; }
+
+.sim-master-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  color: #27675c;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.62rem;
+  font-weight: 500;
+}
+
+.sim-master-status i { width: 6px; height: 6px; }
+
+.sim-link-rail {
+  width: 70%;
+  height: 34px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-around;
+  border-top: 1px solid #b8cec2;
+  position: relative;
+}
+
+.sim-link-rail::before,
+.sim-link-rail span {
+  content: "";
+  display: block;
+  width: 1px;
+  height: 34px;
+  background: #b8cec2;
+}
+
+.sim-link-rail::before { position: absolute; left: 50%; top: -1px; }
+.sim-link-rail span { transform: translateY(-1px); }
+
+.sim-topology-nodes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 0.7rem;
+}
+
+.sim-topology-node {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  padding: 0.85rem 0.55rem;
+  border: 1px solid #cde2d7;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  text-align: center;
+}
+
+.sim-storage-glyph { color: #28745f; font-size: 1.4rem; line-height: 1; }
+.sim-topology-node strong { max-width: 100%; overflow: hidden; font-size: 0.82rem; text-overflow: ellipsis; }
+.sim-topology-node > span:last-child { color: var(--muted); font-size: 0.68rem; }
+.sim-topology-node.is-offline { border-color: #e7b4ad; background: #fff7f5; }
+.sim-topology-node.is-offline .sim-storage-glyph { color: #af493e; }
+.sim-topology-node.is-unknown { border-color: #e5d5ad; background: #fffcf4; }
+.sim-topology-node.is-unknown .sim-storage-glyph { color: #9a741f; }
+
+.sim-topology-legend {
+  display: flex;
+  justify-content: center;
+  gap: 1.1rem;
+  margin-top: 1rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.sim-topology-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.sim-topology-legend i { width: 7px; height: 7px; border-radius: 50%; }
+.legend-online { background: #2e9b78; }
+.legend-offline { background: #c34d41; }
+.legend-unknown { background: #c49b3d; }
+
+.node-control-panel .sim-panel-heading { align-items: end; }
+.sim-count, .sim-event-count { color: var(--muted); font-size: 0.78rem; font-weight: 500; }
+.sim-count { margin-left: 0.25rem; }
+.sim-panel-hint { margin: 0; text-align: right; }
+
+.sim-node-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+  gap: 0.75rem;
+  padding: 1rem 1.2rem 0.5rem;
+}
+
+.sim-node-card {
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.sim-node-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(27, 42, 40, 0.07); }
+.sim-node-card.card-offline { border-color: #e8c0ba; }
+
+.sim-node-card-top { display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; }
+
+.sim-node-avatar {
+  width: 35px;
+  height: 35px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #e8f7f2;
+  color: #26715f;
+}
+
+.sim-node-avatar.offline { background: #fdeceb; color: #a33e34; }
+.sim-node-avatar.unknown { background: #fff4dd; color: #936a17; }
+
+.sim-state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: calc(100% - 43px);
+  padding: 0.25rem 0.45rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8f7f2;
+  color: #27675c;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.58rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sim-state-badge i { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: currentColor; }
+.sim-state-badge.offline { background: #fdeceb; color: #a33e34; }
+.sim-state-badge.unknown { background: #fff4dd; color: #936a17; }
+
+.sim-node-card h4 { margin: 0.7rem 0 0.2rem; font-size: 0.98rem; }
+.sim-node-address { margin: 0; overflow: hidden; color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 0.66rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.sim-heartbeat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0.85rem 0;
+  padding-top: 0.65rem;
+  border-top: 1px solid #ece8de;
+}
+
+.sim-heartbeat span { color: var(--muted); font-size: 0.68rem; }
+.sim-heartbeat strong { font-size: 0.72rem; font-weight: 500; }
+
+.sim-action-button {
+  width: 100%;
+  min-height: 38px;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 140ms ease, opacity 140ms ease;
+}
+
+.sim-action-button.take-offline { background: #fff0ed; color: #a33e34; border-color: #f0d0ca; }
+.sim-action-button.take-offline:hover:not(:disabled) { background: #fbe0db; }
+.sim-action-button.restore { background: #e9f5ef; color: #27675c; border-color: #c5dfd1; }
+.sim-action-button.restore:hover:not(:disabled) { background: #d9eee3; }
+.sim-action-button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.sim-safety-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.6rem 1.2rem 1rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.sim-safety-note span { color: var(--accent-2); }
+
+.sim-event-panel { position: sticky; top: 90px; }
+.sim-event-count { display: grid; place-items: center; min-width: 27px; height: 27px; border-radius: 8px; background: #efe8db; }
+
+.sim-event-list {
+  max-height: 680px;
+  margin: 0;
+  padding: 0.25rem 1.1rem;
+  overflow: auto;
+  list-style: none;
+}
+
+.sim-event-item {
+  position: relative;
+  padding: 0.85rem 0 0.85rem 1.25rem;
+  border-bottom: 1px solid #ece8de;
+}
+
+.sim-event-item:last-child { border-bottom: 0; }
+.sim-event-item::before { content: ""; position: absolute; top: 1.2rem; bottom: -0.3rem; left: 4px; width: 1px; background: #ded9cf; }
+.sim-event-item:last-child::before { display: none; }
+
+.sim-event-marker {
+  position: absolute;
+  z-index: 1;
+  top: 1.05rem;
+  left: 0;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: #5c9b86;
+  box-shadow: 0 0 0 1px #5c9b86;
+}
+
+.event-warning .sim-event-marker { background: #c49b3d; box-shadow: 0 0 0 1px #c49b3d; }
+.event-error .sim-event-marker { background: #c34d41; box-shadow: 0 0 0 1px #c34d41; }
+.sim-event-meta { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 0.61rem; }
+.sim-event-meta span { color: #327365; font-weight: 500; text-transform: uppercase; }
+.sim-event-meta time { white-space: nowrap; }
+.sim-event-item p { margin: 0.4rem 0 0; color: var(--ink); font-size: 0.75rem; line-height: 1.45; overflow-wrap: anywhere; }
+
+.sim-event-footer { padding: 0.75rem 1.1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.66rem; }
+
+.sim-empty-state {
+  padding: 1.5rem 1rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.sim-events-empty { padding: 2rem 1.2rem; }
+
+.simulator-message {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  margin: 0.75rem 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid;
+  border-radius: 10px;
+  font-size: 0.78rem;
+}
+
+.simulator-message strong { font-size: 0.8rem; }
+.simulator-error { border-color: #e1a39a; background: #fff3f1; color: #8a2f27; }
+.simulator-notice { border-color: #a8d3c0; background: #eff8f3; color: #1f5e56; }
+
 .home-link {
   display: inline-block;
   margin-top: 0.2rem;
@@ -508,4 +945,38 @@ body {
   .stats-grid {
     grid-template-columns: 1fr;
   }
+
+  .simulator-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .simulator-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sim-event-panel {
+    position: static;
+  }
+}
+
+@media (max-width: 600px) {
+  .simulator-heading,
+  .node-control-panel .sim-panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .simulator-refresh { width: 100%; }
+  .simulator-metrics { gap: 0.55rem; }
+  .sim-metric-card { align-items: flex-start; gap: 0.55rem; padding: 0.7rem; }
+  .sim-metric-icon { width: 32px; height: 32px; border-radius: 9px; font-size: 1rem; }
+  .sim-metric-card p { font-size: 0.65rem; }
+  .sim-metric-card strong { font-size: 0.82rem; }
+  .sim-panel-heading { padding: 0.9rem; }
+  .sim-topology { padding: 1rem 0.8rem 0.8rem; }
+  .sim-link-rail { width: 78%; }
+  .sim-topology-nodes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sim-topology-legend { gap: 0.65rem; font-size: 0.62rem; }
+  .sim-panel-hint { text-align: left; }
+  .sim-node-grid { padding: 0.8rem 0.8rem 0.35rem; }
 }

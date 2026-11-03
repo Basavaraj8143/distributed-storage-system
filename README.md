@@ -15,6 +15,7 @@ A final-year distributed systems project demonstrating chunk-based file storage,
 
 - [Highlights](#highlights)
 - [Architecture](#architecture)
+- [Deployment on College Private Cloud](#deployment-on-college-private-cloud)
 - [Repository Structure](#repository-structure)
 - [Tech Stack](#tech-stack)
 - [Services and Ports](#services-and-ports)
@@ -60,6 +61,14 @@ flowchart TB
     Master -- "storeChunk / getChunk" --> N3
 ```
 
+## Deployment on College Private Cloud
+
+Project has also been deployed on the college's private cloud infrastructure. The college cloud is built using open-source cloud technologies, including OpenStack and related services, and provides lab resources such as virtual machines, networking, storage, and cloud management.
+
+The college private cloud provides the underlying infrastructure, with OpenStack supplying infrastructure-level resources. ByteHarvest runs as a separate application on the resources provided by the college. Its master service and storage nodes implement the distributed storage functionality, including metadata coordination, chunk replication, health monitoring, and recovery.
+
+An access URL for the deployed application was provided through the college infrastructure.
+
 ## Repository Structure
 
 ```text
@@ -97,6 +106,22 @@ flowchart TB
 The master is configured to use storage nodes on ports `5001`, `5002`, and `5003` in [application.properties](master-service/src/main/resources/application.properties).
 
 ## Quick Start
+
+### Run the Full Cluster with Docker Compose
+
+Prerequisite: Docker Desktop with Docker Compose.
+
+From the repository root, run:
+
+```bash
+docker compose up --build
+```
+
+Open the dashboard at `http://localhost:5173`. The master API is available at `http://localhost:8080`. Compose stores SQLite metadata and each storage node's chunks in separate named volumes, so data survives container restarts and recreation.
+
+Stop the services with `Ctrl+C`, then run `docker compose down`. Avoid `docker compose down -v` unless you intend to permanently delete the metadata and chunk volumes.
+
+### Run Services Directly
 
 ### Prerequisites
 
@@ -284,7 +309,7 @@ More details are documented in [docs/ci-pipeline.md](docs/ci-pipeline.md).
 | SHA-256 chunk integrity checks | ✅ Implemented |
 | Corrupt replica repair | ✅ Implemented |
 | React monitoring dashboard | ✅ Implemented |
-| Docker Compose deployment | ⏳ Not included yet |
+| Docker Compose deployment | ✅ Local setup included |
 | Master replication and consensus | 🔭 Future scope |
 
 ## Known Limitations
@@ -297,7 +322,7 @@ More details are documented in [docs/ci-pipeline.md](docs/ci-pipeline.md).
 
 ## Roadmap
 
-- [ ] Docker Compose setup for one-command local cluster startup.
+- [x] Docker Compose setup for one-command local cluster startup.
 - [ ] Master replication / leader election for high availability.
 - [ ] Rack-aware or zone-aware replica placement.
 - [ ] Configurable chunk size and replication factor.

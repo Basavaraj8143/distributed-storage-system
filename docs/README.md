@@ -15,6 +15,8 @@ This folder now contains the project documentation that was previously split acr
   - `stage-3-plan.md`: Stage 3 implementation plan.
   - `stage-4-plan.md`: Stage 4 integrity plan.
   - `persistent-metadata-plan.md`: Plan for making master metadata durable across restarts.
+  - `postgresql-migration-plan.md`: Plan for migrating master metadata from SQLite to PostgreSQL.
+  - `docker-deployment-plan.md`: Plan for containerizing the services and running the cluster with Docker Compose.
   - `README.md`: Index for planning-specific documents.
 - `progress/`
   - `stage-1-done.md`

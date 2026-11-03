@@ -1,0 +1,15 @@
+.git
+.idea
+.vscode
+**/target
+**/node_modules
+**/dist
+**/build
+**/logs
+**/*.log
+**/.env
+metadata.db
+**/metadata.db
+storage_5001
+storage_5002
+storage_5003

@@ -1,0 +1,75 @@
+services:
+  master:
+    build:
+      context: ./master-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:sqlite:/data/metadata.db
+      STORAGE_NODES: http://storage-node-1:5001,http://storage-node-2:5002,http://storage-node-3:5003
+    ports:
+      - "8080:8080"
+    volumes:
+      - master-metadata:/data
+    depends_on:
+      storage-node-1:
+        condition: service_started
+      storage-node-2:
+        condition: service_started
+      storage-node-3:
+        condition: service_started
+    restart: unless-stopped
+
+  storage-node-1:
+    build:
+      context: ./storage-node
+    environment:
+      SERVER_PORT: 5001
+      HEARTBEAT_MASTER_URL: http://master:8080/heartbeat
+      STORAGE_BASE_DIR: /data
+    volumes:
+      - storage-node-1-data:/data
+    expose:
+      - "5001"
+    restart: unless-stopped
+
+  storage-node-2:
+    build:
+      context: ./storage-node
+    environment:
+      SERVER_PORT: 5002
+      HEARTBEAT_MASTER_URL: http://master:8080/heartbeat
+      STORAGE_BASE_DIR: /data
+    volumes:
+      - storage-node-2-data:/data
+    expose:
+      - "5002"
+    restart: unless-stopped
+
+  storage-node-3:
+    build:
+      context: ./storage-node
+    environment:
+      SERVER_PORT: 5003
+      HEARTBEAT_MASTER_URL: http://master:8080/heartbeat
+      STORAGE_BASE_DIR: /data
+    volumes:
+      - storage-node-3-data:/data
+    expose:
+      - "5003"
+    restart: unless-stopped
+
+  client-ui:
+    build:
+      context: ./client-ui
+      args:
+        VITE_API_BASE_URL: http://localhost:8080
+    ports:
+      - "5173:80"
+    depends_on:
+      - master
+    restart: unless-stopped
+
+volumes:
+  master-metadata:
+  storage-node-1-data:
+  storage-node-2-data:
+  storage-node-3-data:
