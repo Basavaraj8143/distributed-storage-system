@@ -16,14 +16,17 @@ public class HeartbeatSenderService {
 
     private final RestTemplate restTemplate;
     private final String masterHeartbeatUrl;
+    private final String nodeUrl;
     private final String serverPort;
 
     public HeartbeatSenderService(
             RestTemplate restTemplate,
             @Value("${heartbeat.master-url:http://localhost:8080/heartbeat}") String masterHeartbeatUrl,
+            @Value("${storage.node-url:http://localhost:${server.port:5001}}") String nodeUrl,
             @Value("${server.port:5001}") String serverPort) {
         this.restTemplate = restTemplate;
         this.masterHeartbeatUrl = masterHeartbeatUrl;
+        this.nodeUrl = nodeUrl;
         this.serverPort = serverPort;
     }
 
@@ -45,7 +48,6 @@ public class HeartbeatSenderService {
         }
 
         String nodeId = resolveNodeId();
-        String nodeUrl = "http://localhost:" + serverPort;
 
         try {
             restTemplate.postForEntity(
