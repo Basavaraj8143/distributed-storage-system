@@ -6,6 +6,7 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.client.RestTemplate;
 
+// this annotation is used in java for Annotation ConfigApplication context
 @Configuration
 public class AppConfig {
 
@@ -28,3 +29,6 @@ public class AppConfig {
         };
     }
 }
+//rest templete is return type just provide the tempete
+// webconfiguree is an interface
+// we are overiding the method named addcorsmapping so we can configure the cors.

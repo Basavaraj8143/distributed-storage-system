@@ -49,18 +49,40 @@ A final-year distributed systems project demonstrating chunk-based file storage,
 
 ```mermaid
 flowchart TB
-    Client["Client UI / API Consumer"]
-    Master["Master Service<br/>- File metadata<br/>- Chunk placement<br/>- Heartbeat tracking<br/>- Replication repair<br/>- Integrity verification"]
-    N1["Node 1<br/>:5001"]
-    N2["Node 2<br/>:5002"]
-    N3["Node 3<br/>:5003"]
+    Browser["Browser / API Consumer"]
 
-    Client -- "upload / download / status / simulation" --> Master
-    Master -- "storeChunk / getChunk" --> N1
-    Master -- "storeChunk / getChunk" --> N2
-    Master -- "storeChunk / getChunk" --> N3
+    subgraph Compose["Docker Compose Cluster"]
+        UI["React Dashboard<br/>Nginx :80"]
+        Master["Master Service<br/>Spring Boot :8080"]
+        Metadata[("SQLite Metadata<br/>Persistent Volume")]
+        N1["Storage Node 1<br/>:5001"]
+        N2["Storage Node 2<br/>:5002"]
+        N3["Storage Node 3<br/>:5003"]
+        N4["Storage Node 4<br/>:5004"]
+        N5["Storage Node 5<br/>:5005"]
+    end
+
+    Browser -- "Dashboard :5173" --> UI
+    Browser -- "REST API :8080" --> Master
+    UI -- "Upload / download / status / simulation" --> Master
+    Master <--> |"JPA metadata read/write"| Metadata
+    Master -- "Store / retrieve chunks; repair replicas" --> N1
+    Master -- "Store / retrieve chunks; repair replicas" --> N2
+    Master -- "Store / retrieve chunks; repair replicas" --> N3
+    Master -- "Store / retrieve chunks; repair replicas" --> N4
+    Master -- "Store / retrieve chunks; repair replicas" --> N5
+    N1 -- "Heartbeat every 5 seconds" --> Master
+    N2 -- "Heartbeat every 5 seconds" --> Master
+    N3 -- "Heartbeat every 5 seconds" --> Master
+    N4 -- "Heartbeat every 5 seconds" --> Master
+    N5 -- "Heartbeat every 5 seconds" --> Master
+    Master -- "Offline / online simulation controls" --> N1
+    Master -- "Offline / online simulation controls" --> N2
+    Master -- "Offline / online simulation controls" --> N3
+    Master -- "Offline / online simulation controls" --> N4
+    Master -- "Offline / online simulation controls" --> N5
 ```
-
+[![Architecture diagram of basavaraj8143/distributed-storage-system](https://gitdiagram.com/basavaraj8143/distributed-storage-system/diagram.png)](https://gitdiagram.com/basavaraj8143/distributed-storage-system?utm_source=readme&utm_medium=picture)
 ## Deployment on College Private Cloud
 
 Project has also been deployed on the college's private cloud infrastructure. The college cloud is built using open-source cloud technologies, including OpenStack and related services, and provides lab resources such as virtual machines, networking, storage, and cloud management.
@@ -102,8 +124,10 @@ An access URL for the deployed application was provided through the college infr
 | Storage node 1 | `http://localhost:5001` | Chunk storage |
 | Storage node 2 | `http://localhost:5002` | Chunk storage |
 | Storage node 3 | `http://localhost:5003` | Chunk storage |
+| Storage node 4 | `http://localhost:5004` | Chunk storage |
+| Storage node 5 | `http://localhost:5005` | Chunk storage |
 
-The master is configured to use storage nodes on ports `5001`, `5002`, and `5003` in [application.properties](master-service/src/main/resources/application.properties).
+The master is configured to use storage nodes on ports `5001` through `5005` in [application.properties](master-service/src/main/resources/application.properties).
 
 ## Quick Start
 
@@ -158,7 +182,17 @@ cd storage-node
 mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=5003"
 ```
 
-Each node stores chunks in a local folder named after its port, such as `storage_5001/`.
+```bash
+cd storage-node
+mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=5004"
+```
+
+```bash
+cd storage-node
+mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=5005"
+```
+
+Each node stores chunks in a local folder named after its port, such as `storage_5001/` through `storage_5005/`.
 
 ### 3. Start the Frontend
 

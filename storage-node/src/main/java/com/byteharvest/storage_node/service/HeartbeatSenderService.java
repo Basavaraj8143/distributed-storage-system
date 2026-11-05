@@ -73,6 +73,12 @@ public class HeartbeatSenderService {
         if ("5003".equals(port)) {
             return "node-3";
         }
+        if ("5004".equals(port)) {
+            return "node-4";
+        }
+        if ("5005".equals(port)) {
+            return "node-5";
+        }
         return "node-" + port;
     }
 }

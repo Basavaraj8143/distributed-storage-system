@@ -4,7 +4,7 @@ services:
       context: ./master-service
     environment:
       SPRING_DATASOURCE_URL: jdbc:sqlite:/data/metadata.db
-      STORAGE_NODES: http://storage-node-1:5001,http://storage-node-2:5002,http://storage-node-3:5003
+      STORAGE_NODES: http://storage-node-1:5001,http://storage-node-2:5002,http://storage-node-3:5003,http://storage-node-4:5004,http://storage-node-5:5005
     ports:
       - "8080:8080"
     volumes:
@@ -15,6 +15,10 @@ services:
       storage-node-2:
         condition: service_started
       storage-node-3:
+        condition: service_started
+      storage-node-4:
+        condition: service_started
+      storage-node-5:
         condition: service_started
     restart: unless-stopped
 
@@ -60,6 +64,34 @@ services:
       - "5003"
     restart: unless-stopped
 
+  storage-node-4:
+    build:
+      context: ./storage-node
+    environment:
+      SERVER_PORT: 5004
+      HEARTBEAT_MASTER_URL: http://master:8080/heartbeat
+      STORAGE_NODE_URL: http://storage-node-4:5004
+      STORAGE_BASE_DIR: /data
+    volumes:
+      - storage-node-4-data:/data
+    expose:
+      - "5004"
+    restart: unless-stopped
+
+  storage-node-5:
+    build:
+      context: ./storage-node
+    environment:
+      SERVER_PORT: 5005
+      HEARTBEAT_MASTER_URL: http://master:8080/heartbeat
+      STORAGE_NODE_URL: http://storage-node-5:5005
+      STORAGE_BASE_DIR: /data
+    volumes:
+      - storage-node-5-data:/data
+    expose:
+      - "5005"
+    restart: unless-stopped
+
   client-ui:
     build:
       context: ./client-ui
@@ -76,3 +108,5 @@ volumes:
   storage-node-1-data:
   storage-node-2-data:
   storage-node-3-data:
+  storage-node-4-data:
+  storage-node-5-data:

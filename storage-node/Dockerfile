@@ -9,5 +9,5 @@ WORKDIR /app
 RUN mkdir -p /data && chown -R 10001:10001 /app /data
 COPY --from=build --chown=10001:10001 /workspace/target/*.jar /app/storage-node.jar
 USER 10001:10001
-EXPOSE 5001
+EXPOSE 5001 5002 5003 5004 5005
 ENTRYPOINT ["java", "-jar", "/app/storage-node.jar"]

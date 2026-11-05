@@ -6,6 +6,8 @@
 - Storage node 1: `http://localhost:5001`
 - Storage node 2: `http://localhost:5002`
 - Storage node 3: `http://localhost:5003`
+- Storage node 4: `http://localhost:5004`
+- Storage node 5: `http://localhost:5005`
 
 ---
 

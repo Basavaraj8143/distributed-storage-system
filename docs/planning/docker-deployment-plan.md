@@ -2,7 +2,7 @@
 
 ## Objective
 
-Provide a repeatable local deployment of ByteHarvest with Docker Compose, so the master, three storage nodes, and dashboard can be started together. Keep SQLite as the metadata database; PostgreSQL is outside the scope of this deployment plan.
+Provide a repeatable local deployment of ByteHarvest with Docker Compose, so the master, five storage nodes, and dashboard can be started together. Keep SQLite as the metadata database; PostgreSQL is outside the scope of this deployment plan.
 
 ## Implementation Status
 
@@ -14,7 +14,7 @@ Provide a repeatable local deployment of ByteHarvest with Docker Compose, so the
 ## Deployment Configuration
 
 - The master listens on port `8080` and currently uses SQLite.
-- Storage nodes listen on ports `5001`, `5002`, and `5003`; their ports also identify their storage directories.
+- Storage nodes listen on ports `5001` through `5005`; their ports also identify their storage directories.
 - Compose uses service names for internal traffic and the host URL for browser access to the API.
 - The React dashboard uses `VITE_API_BASE_URL`, supplied at image build time.
 
@@ -28,9 +28,11 @@ Create a root `compose.yaml` with these services:
 | `storage-node-1` | `5001` | Optional `localhost:5001` | Dedicated named volume for node 1 chunks |
 | `storage-node-2` | `5002` | Optional `localhost:5002` | Dedicated named volume for node 2 chunks |
 | `storage-node-3` | `5003` | Optional `localhost:5003` | Dedicated named volume for node 3 chunks |
+| `storage-node-4` | `5004` | Optional `localhost:5004` | Dedicated named volume for node 4 chunks |
+| `storage-node-5` | `5005` | Optional `localhost:5005` | Dedicated named volume for node 5 chunks |
 | `client-ui` | `80` (or Vite dev port during development) | `localhost:5173` or `localhost:80` | None |
 
-Within Compose, configure the master to use `http://storage-node-1:5001,http://storage-node-2:5002,http://storage-node-3:5003` and nodes to send heartbeats to `http://master:8080/heartbeat`. The browser should call the host-accessible master address, not the Compose-only service name. Mount a named volume at the directory containing `metadata.db` so SQLite metadata persists when the master container is recreated.
+Within Compose, configure the master to use all five `storage-node-N` service URLs and nodes to send heartbeats to `http://master:8080/heartbeat`. The browser should call the host-accessible master address, not the Compose-only service name. Mount a named volume at the directory containing `metadata.db` so SQLite metadata persists when the master container is recreated.
 
 ## Implementation Phases
 
@@ -63,7 +65,7 @@ Within Compose, configure the master to use `http://storage-node-1:5001,http://s
 6. Expose only ports needed by host users; storage-node ports can remain private unless debugging or direct access is needed.
 7. Provide a committed `.env.example` for non-secret settings if environment configuration is needed; SQLite requires no database credentials.
 
-**Exit criteria:** `docker compose up --build` brings up the database, master, three nodes, and dashboard without manual startup ordering.
+**Exit criteria:** `docker compose up --build` brings up the master, five nodes, and dashboard without manual startup ordering.
 
 ### Phase 4: Data and Operations
 
@@ -77,7 +79,7 @@ Within Compose, configure the master to use `http://storage-node-1:5001,http://s
 ### Phase 5: Validate the Full Cluster
 
 1. Build and start the stack from a clean checkout.
-2. Confirm all three nodes register as active and the dashboard can reach the master.
+2. Confirm all five nodes register as active and the dashboard can reach the master.
 3. Upload and download a file and compare its checksum.
 4. Restart the master and confirm metadata remains available.
 5. Recreate one storage-node container and confirm its chunk data persists.
