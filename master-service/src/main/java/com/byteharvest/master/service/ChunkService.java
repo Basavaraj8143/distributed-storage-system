@@ -3,6 +3,13 @@ package com.byteharvest.master.service;
 import com.byteharvest.master.entity.ChunkMetadataEntity;
 import com.byteharvest.master.entity.ChunkReplicaEntity;
 import com.byteharvest.master.entity.FileMetadataEntity;
+import com.byteharvest.master.exception.ChunkUnavailableException;
+import com.byteharvest.master.exception.InsufficientNodesException;
+import com.byteharvest.master.exception.StoredFileNotFoundException;
+import com.byteharvest.master.model.ChunkInfo;
+import com.byteharvest.master.model.FileDetails;
+import com.byteharvest.master.model.FileSummary;
+import com.byteharvest.master.model.ReconcileResult;
 import com.byteharvest.master.repository.ChunkMetadataRepository;
 import com.byteharvest.master.repository.ChunkReplicaRepository;
 import com.byteharvest.master.repository.FileMetadataRepository;
@@ -13,6 +20,8 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.*;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
@@ -30,6 +39,8 @@ public class ChunkService {
     private RestTemplate restTemplate;
     @Autowired
     private EventLogService eventLogService;
+    @Autowired
+    private HeartbeatService heartbeatService;
     
     @Autowired
     private FileMetadataRepository fileMetadataRepository;
@@ -59,6 +70,11 @@ public class ChunkService {
 
     @Transactional
     public String handleUpload(MultipartFile file) {
+        return handleUpload(file, file.getOriginalFilename());
+    }
+
+    @Transactional
+    public String handleUpload(MultipartFile file, String filename) {
         try {
             byte[] fileBytes = file.getBytes();
             int chunkSize = 1024 * 1024;
@@ -67,7 +83,7 @@ public class ChunkService {
             
             FileMetadataEntity fileEntity = new FileMetadataEntity();
             fileEntity.setFileId(fileId);
-            fileEntity.setOriginalFilename(file.getOriginalFilename());
+            fileEntity.setOriginalFilename(filename);
             fileEntity = fileMetadataRepository.save(fileEntity);
 
             int chunkIndex = 0;
@@ -79,11 +95,7 @@ public class ChunkService {
 
                 String chunkId = UUID.randomUUID().toString();
                 String checksum = calculateSha256(chunk);
-                List<String> selectedNodes = selectNodesForReplication(chunkIndex);
-
-                for (String nodeUrl : selectedNodes) {
-                    sendChunkToNode(nodeUrl, chunkId, chunk);
-                }
+                List<String> selectedNodes = storeChunkOnReplicas(chunkId, chunk, chunkIndex);
 
                 ChunkMetadataEntity chunkEntity = new ChunkMetadataEntity();
                 chunkEntity.setChunkId(chunkId);
@@ -107,6 +119,9 @@ public class ChunkService {
 
             return fileId;
 
+        } catch (InsufficientNodesException e) {
+            eventLogService.error("UPLOAD", "Upload failed: " + e.getMessage());
+            throw e;
         } catch (Exception e) {
             eventLogService.error("UPLOAD", "Upload failed: " + e.getMessage());
             throw new RuntimeException(e);
@@ -124,7 +139,7 @@ public class ChunkService {
         try {
             Optional<FileMetadataEntity> fileOpt = fileMetadataRepository.findById(fileId);
             if (fileOpt.isEmpty()) {
-                throw new RuntimeException("File not found");
+                throw new StoredFileNotFoundException(fileId);
             }
 
             List<ChunkMetadataEntity> chunks = fileOpt.get().getChunks();
@@ -140,6 +155,12 @@ public class ChunkService {
 
             return output.toByteArray();
 
+        } catch (StoredFileNotFoundException e) {
+            eventLogService.warn("DOWNLOAD", "Download requested for unknown fileId=" + fileId);
+            throw e;
+        } catch (ChunkUnavailableException e) {
+            eventLogService.error("DOWNLOAD", "Download failed fileId=" + fileId + " reason=" + e.getMessage());
+            throw e;
         } catch (Exception e) {
             eventLogService.error("DOWNLOAD", "Download failed fileId=" + fileId + " reason=" + e.getMessage());
             throw new RuntimeException(e);
@@ -226,6 +247,186 @@ public class ChunkService {
         return repairedReplicas;
     }
 
+    @Transactional(readOnly = true)
+    public List<FileSummary> listFiles() {
+        return fileMetadataRepository.findAll().stream()
+                .map(file -> new FileSummary(
+                        file.getFileId(),
+                        file.getOriginalFilename(),
+                        file.getChunks().size(),
+                        minReplicaCount(file),
+                        REPLICATION_FACTOR))
+                .sorted(Comparator.comparing(FileSummary::filename,
+                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public FileDetails getFileDetails(String fileId) {
+        FileMetadataEntity file = fileMetadataRepository.findById(fileId)
+                .orElseThrow(() -> new StoredFileNotFoundException(fileId));
+
+        List<ChunkInfo> chunks = file.getChunks().stream()
+                .sorted(Comparator.comparingInt(ChunkMetadataEntity::getChunkIndex))
+                .map(chunk -> new ChunkInfo(
+                        chunk.getChunkId(),
+                        chunk.getChunkIndex(),
+                        chunk.getChecksum(),
+                        replicaUrls(chunk)))
+                .collect(Collectors.toList());
+
+        return new FileDetails(file.getFileId(), file.getOriginalFilename(), chunks.size(), REPLICATION_FACTOR, chunks);
+    }
+
+    /**
+     * Deletes the file's metadata, then removes its chunks from the storage nodes.
+     * Node cleanup runs only after the metadata deletion has committed, so a failed commit
+     * can never leave metadata pointing at chunks that were already removed.
+     * Cleanup is best effort: a node that is down keeps an orphaned chunk file.
+     */
+    @Transactional
+    public void deleteFile(String fileId) {
+        FileMetadataEntity file = fileMetadataRepository.findById(fileId)
+                .orElseThrow(() -> new StoredFileNotFoundException(fileId));
+
+        Map<String, List<String>> chunkNodes = new LinkedHashMap<>();
+        for (ChunkMetadataEntity chunk : file.getChunks()) {
+            chunkNodes.put(chunk.getChunkId(), replicaUrls(chunk));
+        }
+
+        fileMetadataRepository.delete(file);
+
+        Runnable cleanup = () -> removeChunksFromNodes(fileId, chunkNodes);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    cleanup.run();
+                }
+            });
+        } else {
+            cleanup.run();
+        }
+    }
+
+    private void removeChunksFromNodes(String fileId, Map<String, List<String>> chunkNodes) {
+        int failures = 0;
+
+        for (Map.Entry<String, List<String>> entry : chunkNodes.entrySet()) {
+            for (String nodeUrl : entry.getValue()) {
+                try {
+                    restTemplate.delete(nodeUrl + "/deleteChunk/" + entry.getKey());
+                } catch (Exception e) {
+                    failures++;
+                }
+            }
+        }
+
+        if (failures == 0) {
+            eventLogService.info("DELETE", "Deleted fileId=" + fileId + " chunks=" + chunkNodes.size());
+        } else {
+            eventLogService.warn("DELETE", "Deleted fileId=" + fileId + " chunks=" + chunkNodes.size()
+                    + " but " + failures + " replica(s) could not be removed from their nodes");
+        }
+    }
+
+    private List<String> replicaUrls(ChunkMetadataEntity chunk) {
+        return chunk.getReplicas().stream()
+                .map(ChunkReplicaEntity::getNodeUrl)
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    private int minReplicaCount(FileMetadataEntity file) {
+        return file.getChunks().stream()
+                .mapToInt(chunk -> replicaUrls(chunk).size())
+                .min()
+                .orElse(0);
+    }
+
+    /**
+     * Compares the chunks a node actually holds with the metadata. Used when a node comes back after being
+     * FAILED (its replica records were dropped) and when a node is first seen after a master start.
+     *
+     * <ul>
+     *   <li>Known chunk, already recorded for this node: nothing to do.</li>
+     *   <li>Known chunk, enough healthy replicas elsewhere: the copy is surplus and is deleted.</li>
+     *   <li>Known chunk, not enough healthy replicas: the copy is checksum-verified and, if valid,
+     *       its replica record is re-created (adopted) instead of copying the chunk again.</li>
+     *   <li>Unknown chunk: left in place and only counted. It may be a file deleted while the node was away,
+     *       or an upload still in progress, and the node's chunk list carries no age to tell them apart.</li>
+     * </ul>
+     *
+     * A failure to list the node's chunks throws, so the caller can retry. A failure on one chunk only
+     * skips that chunk.
+     */
+    public ReconcileResult reconcileNode(String nodeUrl, Set<String> activeNodeUrls) {
+        String[] reported = restTemplate.getForObject(nodeUrl + "/chunks", String[].class);
+        if (reported == null) {
+            return ReconcileResult.EMPTY;
+        }
+
+        int adopted = 0;
+        int surplusRemoved = 0;
+        int corruptRemoved = 0;
+        int unknownKept = 0;
+        int skipped = 0;
+
+        for (String reportedChunkId : reported) {
+            try {
+                ChunkMetadataEntity chunk = chunkMetadataRepository.findByChunkId(reportedChunkId);
+
+                if (chunk == null) {
+                    unknownKept++;
+                    continue;
+                }
+
+                List<String> replicas = replicaUrls(chunk);
+                if (replicas.contains(nodeUrl)) {
+                    continue;
+                }
+
+                long healthyElsewhere = replicas.stream().filter(activeNodeUrls::contains).count();
+                if (healthyElsewhere >= REPLICATION_FACTOR) {
+                    if (deleteChunkOnNode(nodeUrl, chunk.getChunkId())) {
+                        surplusRemoved++;
+                    }
+                } else if (nodeCopyMatchesChecksum(nodeUrl, chunk)) {
+                    ChunkReplicaEntity replica = new ChunkReplicaEntity();
+                    replica.setNodeUrl(nodeUrl);
+                    replica.setChunkMetadata(chunk);
+                    chunk.getReplicas().add(replica);
+                    chunkMetadataRepository.save(chunk);
+                    adopted++;
+                } else if (deleteChunkOnNode(nodeUrl, chunk.getChunkId())) {
+                    corruptRemoved++;
+                }
+            } catch (Exception e) {
+                skipped++;
+            }
+        }
+
+        return new ReconcileResult(adopted, surplusRemoved, corruptRemoved, unknownKept, skipped);
+    }
+
+    private boolean deleteChunkOnNode(String nodeUrl, String chunkId) {
+        try {
+            restTemplate.delete(nodeUrl + "/deleteChunk/" + chunkId);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Fetches the node's copy and compares its checksum with the one recorded at upload.
+     * A fetch failure throws (the chunk is skipped); only a successful read with a mismatch returns false.
+     */
+    private boolean nodeCopyMatchesChecksum(String nodeUrl, ChunkMetadataEntity chunk) {
+        byte[] data = restTemplate.getForObject(nodeUrl + "/getChunk/" + chunk.getChunkId(), byte[].class);
+        return data != null && calculateSha256(data).equals(chunk.getChecksum());
+    }
+
     private void sendChunkToNode(String nodeUrl, String chunkId, byte[] chunk) {
         String url = nodeUrl + "/storeChunk";
 
@@ -248,15 +449,40 @@ public class ChunkService {
         restTemplate.postForEntity(url, request, String.class);
     }
 
-    private List<String> selectNodesForReplication(int chunkIndex) {
-        if (nodes.size() < REPLICATION_FACTOR) {
-            throw new RuntimeException("Not enough nodes for replication factor " + REPLICATION_FACTOR);
+    /**
+     * Stores the chunk on REPLICATION_FACTOR nodes. Candidates are the configured nodes that are
+     * currently sending heartbeats, in random order. If a send fails (for example the node died
+     * within the heartbeat timeout), the next candidate is tried instead.
+     *
+     * @return the nodes that now hold the chunk
+     */
+    private List<String> storeChunkOnReplicas(String chunkId, byte[] chunk, int chunkIndex) {
+        Set<String> activeNodeUrls = heartbeatService.getActiveNodeUrls();
+
+        List<String> candidates = nodes.stream()
+                .filter(activeNodeUrls::contains)
+                .collect(Collectors.toCollection(ArrayList::new));
+        Collections.shuffle(candidates, new Random(chunkIndex + System.nanoTime()));
+
+        List<String> stored = new ArrayList<>();
+        for (String nodeUrl : candidates) {
+            if (stored.size() == REPLICATION_FACTOR) {
+                break;
+            }
+            try {
+                sendChunkToNode(nodeUrl, chunkId, chunk);
+                stored.add(nodeUrl);
+            } catch (Exception e) {
+                eventLogService.warn("UPLOAD", "Could not store chunk " + chunkId + " on " + nodeUrl + ", trying another node");
+            }
         }
 
-        List<String> shuffledNodes = new ArrayList<>(nodes);
-        Collections.shuffle(shuffledNodes, new Random(chunkIndex + System.nanoTime()));
+        if (stored.size() < REPLICATION_FACTOR) {
+            throw new InsufficientNodesException("Only " + stored.size() + " of " + REPLICATION_FACTOR
+                    + " required storage nodes are available. Start more storage nodes and try again.");
+        }
 
-        return new ArrayList<>(shuffledNodes.subList(0, REPLICATION_FACTOR));
+        return stored;
     }
 
     private byte[] fetchChunkFromReplicas(ChunkMetadataEntity chunk) {
@@ -308,7 +534,7 @@ public class ChunkService {
             return validData;
         }
 
-        throw new RuntimeException("All replicas failed or were corrupted for chunk: " + chunkId);
+        throw new ChunkUnavailableException("All replicas failed or were corrupted for chunk: " + chunkId);
     }
 
     private byte[] tryFetchChunk(String chunkId, List<String> nodeUrls) {

@@ -4,6 +4,7 @@ const USE_MOCK_API = String(import.meta.env.VITE_USE_MOCK_API || "false").toLowe
 const ENDPOINTS = {
   upload: import.meta.env.VITE_API_UPLOAD_PATH || "/upload",
   download: import.meta.env.VITE_API_DOWNLOAD_PATH || "/download",
+  files: import.meta.env.VITE_API_FILES_PATH || "/files",
   nodeStatus: import.meta.env.VITE_API_NODE_STATUS_PATH || "/nodes/status",
   systemHealth: import.meta.env.VITE_API_SYSTEM_HEALTH_PATH || "/system/health",
   logs: import.meta.env.VITE_API_LOGS_PATH || "/logs",
@@ -30,8 +31,18 @@ async function parseError(response) {
     text = "";
   }
 
-  const message = text || `Request failed (${response.status})`;
-  return createError(message, response.status);
+  // The master now returns JSON errors like { status, error, message, path }; show just the message.
+  let message = text;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed.message === "string" && parsed.message) {
+      message = parsed.message;
+    }
+  } catch {
+    // Not JSON (plain text or empty): keep the raw text.
+  }
+
+  return createError(message || `Request failed (${response.status})`, response.status);
 }
 
 async function requestJson(path, options = {}) {
@@ -77,16 +88,21 @@ function normalizeUploadResponse(raw) {
 
 const mockData = {
   upload: { fileId: "mock-file-001" },
+  files: [
+    { fileId: "123e4567-e89b-12d3-a456-426614174000", filename: "report.pdf", chunkCount: 3, minReplicas: 2, targetReplicas: 2 },
+    { fileId: "123e4567-e89b-12d3-a456-426614174001", filename: "notes.txt", chunkCount: 1, minReplicas: 1, targetReplicas: 2 }
+  ],
   nodeStatus: [
     { nodeId: "node-1", status: "ACTIVE", lastHeartbeat: Date.now(), nodeUrl: "http://localhost:5001" },
     { nodeId: "node-2", status: "ACTIVE", lastHeartbeat: Date.now(), nodeUrl: "http://localhost:5002" },
     { nodeId: "node-3", status: "FAILED", lastHeartbeat: Date.now() - 30000, nodeUrl: "http://localhost:5003" },
     { nodeId: "node-4", status: "ACTIVE", lastHeartbeat: Date.now(), nodeUrl: "http://localhost:5004" },
-    { nodeId: "node-5", status: "ACTIVE", lastHeartbeat: Date.now(), nodeUrl: "http://localhost:5005" }
+    { nodeId: "node-5", status: "STALE", lastHeartbeat: Date.now() - 20000, nodeUrl: "http://localhost:5005" }
   ],
   systemHealth: {
     status: "DEGRADED",
     activeNodes: 2,
+    staleNodes: 1,
     failedNodes: 1
   }
 };
@@ -118,6 +134,48 @@ export async function downloadFile(fileId) {
   }
 
   return requestBlob(`${ENDPOINTS.download}/${encodeURIComponent(fileId)}`);
+}
+
+export async function listFiles() {
+  if (USE_MOCK_API) {
+    await sleep(MOCK_DELAY_MS);
+    return mockData.files;
+  }
+
+  const raw = await requestJson(ENDPOINTS.files);
+  return Array.isArray(raw) ? raw : [];
+}
+
+export async function getFileDetails(fileId) {
+  if (!fileId) throw createError("fileId is required");
+
+  if (USE_MOCK_API) {
+    await sleep(MOCK_DELAY_MS);
+    const summary = mockData.files.find((item) => item.fileId === fileId) || mockData.files[0];
+    return {
+      ...summary,
+      chunks: Array.from({ length: summary.chunkCount }, (_, index) => ({
+        chunkId: `mock-chunk-${index}`,
+        chunkIndex: index,
+        checksum: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        nodeUrls: ["http://localhost:5001", "http://localhost:5002"].slice(0, summary.minReplicas)
+      }))
+    };
+  }
+
+  return requestJson(`${ENDPOINTS.files}/${encodeURIComponent(fileId)}`);
+}
+
+export async function deleteFile(fileId) {
+  if (!fileId) throw createError("fileId is required for delete");
+
+  if (USE_MOCK_API) {
+    await sleep(MOCK_DELAY_MS);
+    mockData.files = mockData.files.filter((item) => item.fileId !== fileId);
+    return;
+  }
+
+  await requestText(`${ENDPOINTS.files}/${encodeURIComponent(fileId)}`, { method: "DELETE" });
 }
 
 export async function getNodeStatus() {

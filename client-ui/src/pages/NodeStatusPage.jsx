@@ -20,6 +20,12 @@ function normalizeNode(node, index) {
   };
 }
 
+function statusTone(status) {
+  if (status === "ACTIVE") return "good";
+  if (status === "STALE") return "warn";
+  return "bad";
+}
+
 export default function NodeStatusPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,7 +56,10 @@ export default function NodeStatusPage() {
     <section className="page">
       <p className="eyebrow">Operations</p>
       <h2>Node Status</h2>
-      <p className="page-copy">Node health view with 10-second auto refresh.</p>
+      <p className="page-copy">
+        Node health view with 10-second auto refresh. A STALE node has gone quiet: it gets no new uploads, but its data
+        is kept. A FAILED node has been silent for longer: its replicas are dropped and its chunks are re-replicated.
+      </p>
 
       <div className="section-head">
         <h3>Node Health</h3>
@@ -79,7 +88,7 @@ export default function NodeStatusPage() {
                 <tr key={node.nodeId}>
                   <td>{node.nodeId}</td>
                   <td>
-                    <span className={node.status === "ACTIVE" ? "status-dot good" : "status-dot bad"}>{node.status}</span>
+                    <span className={`status-dot ${statusTone(node.status)}`}>{node.status}</span>
                   </td>
                   <td>{toDisplayTime(node.lastHeartbeat)}</td>
                   <td>{node.nodeUrl}</td>

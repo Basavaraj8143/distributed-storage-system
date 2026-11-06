@@ -7,21 +7,28 @@ function normalizeHealth(raw, nodes = []) {
   const health = raw && typeof raw === "object" ? raw : {};
   const activeNodes =
     Number.isFinite(health.activeNodes) ? health.activeNodes : nodes.filter((n) => String(n.status).toUpperCase() === "ACTIVE").length;
+  const staleNodes =
+    Number.isFinite(health.staleNodes) ? health.staleNodes : nodes.filter((n) => String(n.status).toUpperCase() === "STALE").length;
   const failedNodes =
-    Number.isFinite(health.failedNodes) ? health.failedNodes : nodes.filter((n) => String(n.status).toUpperCase() !== "ACTIVE").length;
+    Number.isFinite(health.failedNodes)
+      ? health.failedNodes
+      : nodes.filter((n) => {
+          const status = String(n.status).toUpperCase();
+          return status !== "ACTIVE" && status !== "STALE";
+        }).length;
 
   let status = health.status || health.clusterStatus || "";
   if (!status) {
-    status = failedNodes > 0 ? "DEGRADED" : "HEALTHY";
+    status = failedNodes > 0 || staleNodes > 0 ? "DEGRADED" : "HEALTHY";
   }
 
-  return { activeNodes, failedNodes, status: String(status).toUpperCase() };
+  return { activeNodes, staleNodes, failedNodes, status: String(status).toUpperCase() };
 }
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [health, setHealth] = useState({ activeNodes: 0, failedNodes: 0, status: "UNKNOWN" });
+  const [health, setHealth] = useState({ activeNodes: 0, staleNodes: 0, failedNodes: 0, status: "UNKNOWN" });
   const [lastUpdated, setLastUpdated] = useState("");
 
   const refresh = useCallback(async () => {
@@ -73,6 +80,10 @@ export default function DashboardPage() {
         <article className="stats-card">
           <p className="stats-label">Active Nodes</p>
           <p className="stats-value">{health.activeNodes}</p>
+        </article>
+        <article className="stats-card">
+          <p className="stats-label">Stale Nodes</p>
+          <p className="stats-value">{health.staleNodes}</p>
         </article>
         <article className="stats-card">
           <p className="stats-label">Failed Nodes</p>

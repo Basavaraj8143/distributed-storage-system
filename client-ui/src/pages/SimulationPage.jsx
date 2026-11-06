@@ -65,7 +65,7 @@ export default function SimulationPage() {
       if (takingOffline) {
         await simulateNodeOffline(node.nodeId);
         setSimulatedOffline((current) => ({ ...current, [node.nodeId]: true }));
-        setNotice(`${node.nodeId} has been instructed to go offline. Heartbeat detection may take a few seconds.`);
+        setNotice(`${node.nodeId} has been instructed to go offline. It turns STALE after a short silence and FAILED after a longer one, which is when repair starts.`);
       } else {
         await simulateNodeOnline(node.nodeId);
         setSimulatedOffline((current) => ({ ...current, [node.nodeId]: false }));
@@ -141,17 +141,18 @@ export default function SimulationPage() {
                 <div className="sim-topology-nodes">
                   {nodes.map((node) => {
                     const isOffline = Boolean(simulatedOffline[node.nodeId]) || node.status === "FAILED";
-                    const isUnknown = node.status === "UNKNOWN";
+                    const isStale = node.status === "STALE";
+                    const isUnknown = node.status === "UNKNOWN" || isStale;
                     return (
                       <div className={`sim-topology-node ${isOffline ? "is-offline" : isUnknown ? "is-unknown" : "is-online"}`} key={node.nodeId}>
                         <span className="sim-storage-glyph" aria-hidden="true">▤</span>
                         <strong>{node.nodeId}</strong>
-                        <span>{isOffline ? "Connection interrupted" : isUnknown ? "Awaiting heartbeat" : "Heartbeat active"}</span>
+                        <span>{isOffline ? "Connection interrupted" : isStale ? "Heartbeat delayed" : isUnknown ? "Awaiting heartbeat" : "Heartbeat active"}</span>
                       </div>
                     );
                   })}
                 </div>
-                <div className="sim-topology-legend"><span><i className="legend-online" /> Online</span><span><i className="legend-offline" /> Offline</span><span><i className="legend-unknown" /> Unknown</span></div>
+                <div className="sim-topology-legend"><span><i className="legend-online" /> Online</span><span><i className="legend-offline" /> Offline</span><span><i className="legend-unknown" /> Unknown / stale</span></div>
               </div>
             )}
           </article>
@@ -166,7 +167,7 @@ export default function SimulationPage() {
                 {nodes.map((node) => {
                   const simulated = Boolean(simulatedOffline[node.nodeId]);
                   const failed = simulated || node.status === "FAILED";
-                  const unknown = node.status === "UNKNOWN" && !simulated;
+                  const unknown = (node.status === "UNKNOWN" || node.status === "STALE") && !simulated;
                   const stateLabel = simulated ? "SIMULATED OFFLINE" : node.status;
                   const stateClass = failed ? "offline" : unknown ? "unknown" : "online";
                   const actionDisabled = pendingNode === node.nodeId || (unknown && !simulated);

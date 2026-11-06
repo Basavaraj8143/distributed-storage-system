@@ -7,7 +7,9 @@ import com.byteharvest.master.repository.ChunkMetadataRepository;
 import com.byteharvest.master.repository.ChunkReplicaRepository;
 import com.byteharvest.master.repository.FileMetadataRepository;
 import com.byteharvest.master.service.ChunkService;
+import com.byteharvest.master.exception.InsufficientNodesException;
 import com.byteharvest.master.service.EventLogService;
+import com.byteharvest.master.service.HeartbeatService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -36,6 +38,9 @@ class ChunkIntegrityTest {
     private EventLogService eventLogService;
 
     @Mock
+    private HeartbeatService heartbeatService;
+
+    @Mock
     private FileMetadataRepository fileMetadataRepository;
 
     @Mock
@@ -52,6 +57,10 @@ class ChunkIntegrityTest {
         MockitoAnnotations.openMocks(this);
         ReflectionTestUtils.setField(chunkService, "configuredNodes", "http://localhost:5001,http://localhost:5002,http://localhost:5003,http://localhost:5004,http://localhost:5005");
         chunkService.initNodes();
+
+        when(heartbeatService.getActiveNodeUrls()).thenReturn(Set.of(
+                "http://localhost:5001", "http://localhost:5002", "http://localhost:5003",
+                "http://localhost:5004", "http://localhost:5005"));
 
         fakeDatabase.clear();
         fakeChunkDatabase.clear();
@@ -105,6 +114,47 @@ class ChunkIntegrityTest {
             assertNotNull(chunk.getChecksum());
             assertEquals(64, chunk.getChecksum().length());
         }
+    }
+
+    @Test
+    void uploadOnlyUsesNodesThatAreActive() {
+        when(heartbeatService.getActiveNodeUrls()).thenReturn(Set.of("http://localhost:5003", "http://localhost:5004"));
+        MockMultipartFile file = new MockMultipartFile("file", "test.txt", "text/plain", "hello".getBytes());
+
+        String fileId = chunkService.handleUpload(file);
+
+        ChunkMetadataEntity chunk = fakeChunkDatabase.stream()
+                .filter(c -> c.getFileMetadata().getFileId().equals(fileId))
+                .findFirst().orElseThrow();
+        Set<String> used = chunk.getReplicas().stream().map(ChunkReplicaEntity::getNodeUrl).collect(Collectors.toSet());
+
+        assertEquals(Set.of("http://localhost:5003", "http://localhost:5004"), used);
+        verify(restTemplate, never()).postForEntity(eq("http://localhost:5001/storeChunk"), any(), eq(String.class));
+    }
+
+    @Test
+    void uploadTriesAnotherNodeWhenASendFails() {
+        when(restTemplate.postForEntity(eq("http://localhost:5001/storeChunk"), any(), eq(String.class)))
+                .thenThrow(new RuntimeException("Connection refused"));
+        MockMultipartFile file = new MockMultipartFile("file", "test.txt", "text/plain", "hello".getBytes());
+
+        String fileId = chunkService.handleUpload(file);
+
+        ChunkMetadataEntity chunk = fakeChunkDatabase.stream()
+                .filter(c -> c.getFileMetadata().getFileId().equals(fileId))
+                .findFirst().orElseThrow();
+        List<String> used = chunk.getReplicas().stream().map(ChunkReplicaEntity::getNodeUrl).collect(Collectors.toList());
+
+        assertEquals(2, used.size());
+        assertFalse(used.contains("http://localhost:5001"));
+    }
+
+    @Test
+    void uploadFailsClearlyWhenTooFewNodesAreActive() {
+        when(heartbeatService.getActiveNodeUrls()).thenReturn(Set.of("http://localhost:5003"));
+        MockMultipartFile file = new MockMultipartFile("file", "test.txt", "text/plain", "hello".getBytes());
+
+        assertThrows(InsufficientNodesException.class, () -> chunkService.handleUpload(file));
     }
 
     @Test

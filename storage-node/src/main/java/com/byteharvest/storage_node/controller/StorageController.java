@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.*;
+import java.util.List;
+import java.util.stream.Stream;
 
 @RestController
 public class StorageController {
@@ -20,6 +22,14 @@ public class StorageController {
 
     public StorageController(com.byteharvest.storage_node.service.HeartbeatSenderService heartbeatSenderService) {
         this.heartbeatSenderService = heartbeatSenderService;
+    }
+
+    private Path getChunkDir() {
+        if (storageBaseDir == null || storageBaseDir.isBlank()) {
+            return Paths.get("storage_" + serverPort);
+        }
+
+        return Paths.get(storageBaseDir, "storage_" + serverPort);
     }
 
     private Path getChunkPath(String chunkId) {
@@ -74,6 +84,53 @@ public class StorageController {
 
         } catch (Exception e) {
             return ResponseEntity.status(404).build();
+        }
+    }
+
+    /**
+     * Lists the ids of every chunk stored on this node. The master calls this when a node rejoins,
+     * to compare what the node holds against the metadata.
+     */
+    @GetMapping("/chunks")
+    public ResponseEntity<List<String>> listChunks() {
+
+        if (heartbeatSenderService.isOffline()) {
+            return ResponseEntity.status(503).build();
+        }
+
+        Path dir = getChunkDir();
+        if (!Files.isDirectory(dir)) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        try (Stream<Path> files = Files.list(dir)) {
+            List<String> chunkIds = files
+                    .filter(Files::isRegularFile)
+                    .map(path -> path.getFileName().toString())
+                    .filter(name -> name.startsWith("chunk_"))
+                    .map(name -> name.substring("chunk_".length()))
+                    .sorted()
+                    .toList();
+            return ResponseEntity.ok(chunkIds);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    @DeleteMapping("/deleteChunk/{chunkId}")
+    public ResponseEntity<String> deleteChunk(@PathVariable String chunkId) {
+
+        if (heartbeatSenderService.isOffline()) {
+            return ResponseEntity.status(503).body("Node is offline");
+        }
+
+        try {
+            Files.deleteIfExists(getChunkPath(chunkId));
+            return ResponseEntity.ok("Deleted");
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error deleting chunk");
         }
     }
 }

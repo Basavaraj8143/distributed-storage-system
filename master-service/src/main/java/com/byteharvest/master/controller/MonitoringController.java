@@ -23,6 +23,7 @@ public class MonitoringController {
     public List<Map<String, Object>> getNodeStatus() {
         List<Map<String, Object>> response = new ArrayList<>();
         Set<String> active = heartbeatService.getActiveNodes();
+        Set<String> stale = heartbeatService.getStaleNodes();
         Set<String> failed = heartbeatService.getFailedNodes();
 
         for (String nodeId : heartbeatService.getKnownNodeIds()) {
@@ -33,6 +34,8 @@ public class MonitoringController {
 
             if (active.contains(nodeId)) {
                 node.put("status", "ACTIVE");
+            } else if (stale.contains(nodeId)) {
+                node.put("status", "STALE");
             } else if (failed.contains(nodeId)) {
                 node.put("status", "FAILED");
             } else {
@@ -47,12 +50,13 @@ public class MonitoringController {
     @GetMapping("/system/health")
     public Map<String, Object> getSystemHealth() {
         int activeNodes = heartbeatService.getActiveNodes().size();
+        int staleNodes = heartbeatService.getStaleNodes().size();
         int failedNodes = heartbeatService.getFailedNodes().size();
 
         String status;
-        if (activeNodes == 0 && failedNodes == 0) {
+        if (activeNodes == 0 && staleNodes == 0 && failedNodes == 0) {
             status = "UNKNOWN";
-        } else if (failedNodes > 0) {
+        } else if (failedNodes > 0 || staleNodes > 0) {
             status = "DEGRADED";
         } else {
             status = "HEALTHY";
@@ -61,10 +65,13 @@ public class MonitoringController {
         Map<String, Object> response = new HashMap<>();
         response.put("status", status);
         response.put("activeNodes", activeNodes);
+        response.put("staleNodes", staleNodes);
         response.put("failedNodes", failedNodes);
         response.put("activeNodeIds", heartbeatService.getActiveNodes());
+        response.put("staleNodeIds", heartbeatService.getStaleNodes());
         response.put("failedNodeIds", heartbeatService.getFailedNodes());
+        response.put("staleAfterSeconds", heartbeatService.getStaleAfterMs() / 1000);
+        response.put("failedAfterSeconds", heartbeatService.getDeadAfterMs() / 1000);
         return response;
     }
 }
-
