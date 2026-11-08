@@ -1,5 +1,6 @@
 package com.byteharvest.master.service;
 
+import com.byteharvest.master.config.StorageProperties;
 import com.byteharvest.master.entity.ChunkMetadataEntity;
 import com.byteharvest.master.entity.ChunkReplicaEntity;
 import com.byteharvest.master.entity.FileMetadataEntity;
@@ -11,11 +12,7 @@ import com.byteharvest.master.model.FileDetails;
 import com.byteharvest.master.model.FileSummary;
 import com.byteharvest.master.model.ReconcileResult;
 import com.byteharvest.master.repository.ChunkMetadataRepository;
-import com.byteharvest.master.repository.ChunkReplicaRepository;
 import com.byteharvest.master.repository.FileMetadataRepository;
-import jakarta.annotation.PostConstruct;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -33,39 +30,26 @@ import java.util.stream.Collectors;
 @Service
 public class ChunkService {
 
-    private static final int REPLICATION_FACTOR = 2;
-
-    @Autowired
-    private RestTemplate restTemplate;
-    @Autowired
-    private EventLogService eventLogService;
-    @Autowired
-    private HeartbeatService heartbeatService;
+    private final StorageProperties properties;
+    private final RestTemplate restTemplate;
+    private final EventLogService eventLogService;
+    private final HeartbeatService heartbeatService;
     
-    @Autowired
-    private FileMetadataRepository fileMetadataRepository;
-    @Autowired
-    private ChunkMetadataRepository chunkMetadataRepository;
-    @Autowired
-    private ChunkReplicaRepository chunkReplicaRepository;
+    private final FileMetadataRepository fileMetadataRepository;
+    private final ChunkMetadataRepository chunkMetadataRepository;
 
-    @Value("${storage.nodes:http://localhost:5001,http://localhost:5002,http://localhost:5003,http://localhost:5004,http://localhost:5005}")
-    private String configuredNodes;
-
-    private List<String> nodes;
-
-    @PostConstruct
-    public void initNodes() {
-        List<String> parsedNodes = Arrays.stream(configuredNodes.split(","))
-                .map(String::trim)
-                .filter(node -> !node.isEmpty())
-                .toList();
-
-        if (parsedNodes.isEmpty()) {
-            throw new RuntimeException("No storage nodes configured");
-        }
-
-        nodes = parsedNodes;
+    public ChunkService(StorageProperties properties,
+                        RestTemplate restTemplate,
+                        EventLogService eventLogService,
+                        HeartbeatService heartbeatService,
+                        FileMetadataRepository fileMetadataRepository,
+                        ChunkMetadataRepository chunkMetadataRepository) {
+        this.properties = properties;
+        this.restTemplate = restTemplate;
+        this.eventLogService = eventLogService;
+        this.heartbeatService = heartbeatService;
+        this.fileMetadataRepository = fileMetadataRepository;
+        this.chunkMetadataRepository = chunkMetadataRepository;
     }
 
     @Transactional
@@ -77,7 +61,7 @@ public class ChunkService {
     public String handleUpload(MultipartFile file, String filename) {
         try {
             byte[] fileBytes = file.getBytes();
-            int chunkSize = 1024 * 1024;
+            int chunkSize = properties.chunkSizeBytes();
 
             String fileId = UUID.randomUUID().toString();
             
@@ -210,7 +194,7 @@ public class ChunkService {
                     .distinct()
                     .collect(Collectors.toList());
 
-            if (replicas.size() >= REPLICATION_FACTOR) {
+            if (replicas.size() >= properties.replicationFactor()) {
                 continue;
             }
 
@@ -222,7 +206,7 @@ public class ChunkService {
             Set<String> candidateTargets = new LinkedHashSet<>(activeNodeUrls);
             candidateTargets.removeAll(replicas);
 
-            while (replicas.size() < REPLICATION_FACTOR && !candidateTargets.isEmpty()) {
+            while (replicas.size() < properties.replicationFactor() && !candidateTargets.isEmpty()) {
                 String targetNode = candidateTargets.iterator().next();
                 candidateTargets.remove(targetNode);
 
@@ -255,7 +239,7 @@ public class ChunkService {
                         file.getOriginalFilename(),
                         file.getChunks().size(),
                         minReplicaCount(file),
-                        REPLICATION_FACTOR))
+                        properties.replicationFactor()))
                 .sorted(Comparator.comparing(FileSummary::filename,
                         Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .collect(Collectors.toList());
@@ -275,7 +259,7 @@ public class ChunkService {
                         replicaUrls(chunk)))
                 .collect(Collectors.toList());
 
-        return new FileDetails(file.getFileId(), file.getOriginalFilename(), chunks.size(), REPLICATION_FACTOR, chunks);
+        return new FileDetails(file.getFileId(), file.getOriginalFilename(), chunks.size(), properties.replicationFactor(), chunks);
     }
 
     /**
@@ -387,7 +371,7 @@ public class ChunkService {
                 }
 
                 long healthyElsewhere = replicas.stream().filter(activeNodeUrls::contains).count();
-                if (healthyElsewhere >= REPLICATION_FACTOR) {
+                if (healthyElsewhere >= properties.replicationFactor()) {
                     if (deleteChunkOnNode(nodeUrl, chunk.getChunkId())) {
                         surplusRemoved++;
                     }
@@ -450,7 +434,7 @@ public class ChunkService {
     }
 
     /**
-     * Stores the chunk on REPLICATION_FACTOR nodes. Candidates are the configured nodes that are
+     * Stores the chunk on storage.replication-factor nodes. Candidates are the configured nodes that are
      * currently sending heartbeats, in random order. If a send fails (for example the node died
      * within the heartbeat timeout), the next candidate is tried instead.
      *
@@ -459,14 +443,14 @@ public class ChunkService {
     private List<String> storeChunkOnReplicas(String chunkId, byte[] chunk, int chunkIndex) {
         Set<String> activeNodeUrls = heartbeatService.getActiveNodeUrls();
 
-        List<String> candidates = nodes.stream()
+        List<String> candidates = properties.nodes().stream()
                 .filter(activeNodeUrls::contains)
                 .collect(Collectors.toCollection(ArrayList::new));
         Collections.shuffle(candidates, new Random(chunkIndex + System.nanoTime()));
 
         List<String> stored = new ArrayList<>();
         for (String nodeUrl : candidates) {
-            if (stored.size() == REPLICATION_FACTOR) {
+            if (stored.size() == properties.replicationFactor()) {
                 break;
             }
             try {
@@ -477,8 +461,8 @@ public class ChunkService {
             }
         }
 
-        if (stored.size() < REPLICATION_FACTOR) {
-            throw new InsufficientNodesException("Only " + stored.size() + " of " + REPLICATION_FACTOR
+        if (stored.size() < properties.replicationFactor()) {
+            throw new InsufficientNodesException("Only " + stored.size() + " of " + properties.replicationFactor()
                     + " required storage nodes are available. Start more storage nodes and try again.");
         }
 

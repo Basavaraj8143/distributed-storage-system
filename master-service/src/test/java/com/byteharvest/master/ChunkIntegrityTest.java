@@ -1,5 +1,6 @@
 package com.byteharvest.master;
 
+import com.byteharvest.master.config.StorageProperties;
 import com.byteharvest.master.entity.ChunkMetadataEntity;
 import com.byteharvest.master.entity.ChunkReplicaEntity;
 import com.byteharvest.master.entity.FileMetadataEntity;
@@ -12,11 +13,9 @@ import com.byteharvest.master.service.EventLogService;
 import com.byteharvest.master.service.HeartbeatService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
@@ -28,7 +27,6 @@ import static org.mockito.Mockito.*;
 
 class ChunkIntegrityTest {
 
-    @InjectMocks
     private ChunkService chunkService;
 
     @Mock
@@ -52,11 +50,21 @@ class ChunkIntegrityTest {
     private Map<String, FileMetadataEntity> fakeDatabase = new HashMap<>();
     private List<ChunkMetadataEntity> fakeChunkDatabase = new ArrayList<>();
 
+    private static final List<String> FIVE_NODES = List.of(
+            "http://localhost:5001", "http://localhost:5002", "http://localhost:5003",
+            "http://localhost:5004", "http://localhost:5005");
+
+    private ChunkService serviceWith(int replicationFactor, int chunkSizeBytes) {
+        return new ChunkService(
+                new StorageProperties(replicationFactor, chunkSizeBytes, FIVE_NODES),
+                restTemplate, eventLogService, heartbeatService,
+                fileMetadataRepository, chunkMetadataRepository);
+    }
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        ReflectionTestUtils.setField(chunkService, "configuredNodes", "http://localhost:5001,http://localhost:5002,http://localhost:5003,http://localhost:5004,http://localhost:5005");
-        chunkService.initNodes();
+        chunkService = serviceWith(2, 1024 * 1024);
 
         when(heartbeatService.getActiveNodeUrls()).thenReturn(Set.of(
                 "http://localhost:5001", "http://localhost:5002", "http://localhost:5003",
@@ -155,6 +163,61 @@ class ChunkIntegrityTest {
         MockMultipartFile file = new MockMultipartFile("file", "test.txt", "text/plain", "hello".getBytes());
 
         assertThrows(InsufficientNodesException.class, () -> chunkService.handleUpload(file));
+    }
+
+    @Test
+    void uploadHonoursTheConfiguredReplicationFactor() {
+        chunkService = serviceWith(3, 1024 * 1024);
+        MockMultipartFile file = new MockMultipartFile("file", "test.txt", "text/plain", "hello".getBytes());
+
+        String fileId = chunkService.handleUpload(file);
+
+        ChunkMetadataEntity chunk = fakeChunkDatabase.stream()
+                .filter(c -> c.getFileMetadata().getFileId().equals(fileId))
+                .findFirst().orElseThrow();
+        assertEquals(3, chunk.getReplicas().size());
+    }
+
+    @Test
+    void uploadFailsWhenFewerNodesAreActiveThanTheConfiguredReplicationFactor() {
+        chunkService = serviceWith(3, 1024 * 1024);
+        when(heartbeatService.getActiveNodeUrls()).thenReturn(Set.of("http://localhost:5001", "http://localhost:5002"));
+        MockMultipartFile file = new MockMultipartFile("file", "test.txt", "text/plain", "hello".getBytes());
+
+        assertThrows(InsufficientNodesException.class, () -> chunkService.handleUpload(file));
+    }
+
+    @Test
+    void uploadHonoursTheConfiguredChunkSize() {
+        chunkService = serviceWith(2, 1024);
+        MockMultipartFile file = new MockMultipartFile("file", "test.bin", "application/octet-stream", new byte[2500]);
+
+        String fileId = chunkService.handleUpload(file);
+
+        long chunkCount = fakeChunkDatabase.stream()
+                .filter(c -> c.getFileMetadata().getFileId().equals(fileId))
+                .count();
+        assertEquals(3, chunkCount, "2500 bytes in 1024-byte chunks is 1024 + 1024 + 452");
+    }
+
+    @Test
+    void raisingTheReplicationFactorMakesRepairAddTheMissingCopy() {
+        byte[] content = "chunk that gains a third copy".getBytes();
+        MockMultipartFile file = new MockMultipartFile("file", "test.txt", "text/plain", content);
+        String fileId = chunkService.handleUpload(file);
+
+        ChunkMetadataEntity chunk = fakeChunkDatabase.stream()
+                .filter(c -> c.getFileMetadata().getFileId().equals(fileId))
+                .findFirst().orElseThrow();
+        assertEquals(2, chunk.getReplicas().size());
+
+        chunkService = serviceWith(3, 1024 * 1024);
+        when(restTemplate.getForObject(anyString(), eq(byte[].class))).thenReturn(content);
+
+        int added = chunkService.repairUnderReplicatedChunks(new HashSet<>(FIVE_NODES));
+
+        assertEquals(1, added);
+        assertEquals(3, chunk.getReplicas().size());
     }
 
     @Test

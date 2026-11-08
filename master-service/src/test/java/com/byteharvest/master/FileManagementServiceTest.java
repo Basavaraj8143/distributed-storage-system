@@ -1,5 +1,6 @@
 package com.byteharvest.master;
 
+import com.byteharvest.master.config.StorageProperties;
 import com.byteharvest.master.entity.ChunkMetadataEntity;
 import com.byteharvest.master.entity.ChunkReplicaEntity;
 import com.byteharvest.master.entity.FileMetadataEntity;
@@ -12,9 +13,9 @@ import com.byteharvest.master.repository.ChunkReplicaRepository;
 import com.byteharvest.master.repository.FileMetadataRepository;
 import com.byteharvest.master.service.ChunkService;
 import com.byteharvest.master.service.EventLogService;
+import com.byteharvest.master.service.HeartbeatService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.web.client.RestTemplate;
@@ -36,7 +37,6 @@ class FileManagementServiceTest {
 
     private static final String FILE_ID = "123e4567-e89b-12d3-a456-426614174000";
 
-    @InjectMocks
     private ChunkService chunkService;
 
     @Mock
@@ -44,6 +44,9 @@ class FileManagementServiceTest {
 
     @Mock
     private EventLogService eventLogService;
+
+    @Mock
+    private HeartbeatService heartbeatService;
 
     @Mock
     private FileMetadataRepository fileMetadataRepository;
@@ -57,6 +60,10 @@ class FileManagementServiceTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        chunkService = new ChunkService(
+                new StorageProperties(2, 1024 * 1024, List.of("http://localhost:5001", "http://localhost:5002", "http://localhost:5003")),
+                restTemplate, eventLogService, heartbeatService,
+                fileMetadataRepository, chunkMetadataRepository);
     }
 
     /** Builds a file whose chunk i has replicasPerChunk[i] replicas, on http://localhost:5001, 5002, ... */

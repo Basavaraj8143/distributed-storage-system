@@ -263,6 +263,8 @@ Important values:
 spring.servlet.multipart.max-file-size=10MB
 spring.servlet.multipart.max-request-size=10MB
 storage.nodes=http://localhost:5001,http://localhost:5002,http://localhost:5003
+storage.replication-factor=2
+storage.chunk-size-bytes=1048576
 spring.datasource.url=jdbc:sqlite:metadata.db
 ```
 
@@ -359,7 +361,7 @@ More details are documented in [docs/ci-pipeline.md](docs/ci-pipeline.md).
 - [x] Docker Compose setup for one-command local cluster startup.
 - [ ] Master replication / leader election for high availability.
 - [ ] Rack-aware or zone-aware replica placement.
-- [ ] Configurable chunk size and replication factor.
+- [x] Configurable chunk size and replication factor (`storage.replication-factor`, `storage.chunk-size-bytes`).
 - [ ] Authentication and access control on the API.
 
 ## Team

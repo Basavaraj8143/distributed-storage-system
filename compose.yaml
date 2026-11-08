@@ -4,6 +4,9 @@ services:
       context: ./master-service
     environment:
       SPRING_DATASOURCE_URL: jdbc:sqlite:/data/metadata.db
+      # Copies kept of every chunk. Must not exceed the number of nodes in STORAGE_NODES.
+      STORAGE_REPLICATION_FACTOR: 2
+      STORAGE_CHUNK_SIZE_BYTES: 1048576
       STORAGE_NODES: http://storage-node-1:5001,http://storage-node-2:5002,http://storage-node-3:5003,http://storage-node-4:5004,http://storage-node-5:5005
     ports:
       - "8080:8080"

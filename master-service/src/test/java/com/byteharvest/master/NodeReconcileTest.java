@@ -1,5 +1,6 @@
 package com.byteharvest.master;
 
+import com.byteharvest.master.config.StorageProperties;
 import com.byteharvest.master.entity.ChunkMetadataEntity;
 import com.byteharvest.master.entity.ChunkReplicaEntity;
 import com.byteharvest.master.model.ReconcileResult;
@@ -11,7 +12,6 @@ import com.byteharvest.master.service.EventLogService;
 import com.byteharvest.master.service.HeartbeatService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.web.client.RestTemplate;
@@ -44,7 +44,6 @@ class NodeReconcileTest {
     private static final byte[] CONTENT = "the real chunk content".getBytes(StandardCharsets.UTF_8);
     private static final byte[] CORRUPT = "not the real content".getBytes(StandardCharsets.UTF_8);
 
-    @InjectMocks
     private ChunkService chunkService;
 
     @Mock
@@ -68,6 +67,10 @@ class NodeReconcileTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        chunkService = new ChunkService(
+                new StorageProperties(2, 1024 * 1024, List.of(NODE_A, NODE_B, RETURNING)),
+                restTemplate, eventLogService, heartbeatService,
+                fileMetadataRepository, chunkMetadataRepository);
     }
 
     private static String sha256(byte[] data) {
