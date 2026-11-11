@@ -1,5 +1,8 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { deleteFile, downloadFile, getFileDetails, listFiles } from "../api";
+import { usePolling } from "../hooks/usePolling";
+
+const POLL_MS = 10000;
 
 function parseFilenameFromContentDisposition(contentDisposition) {
   if (!contentDisposition) return "";
@@ -67,6 +70,28 @@ export default function FilesPage() {
   useEffect(() => {
     loadFiles();
   }, [loadFiles]);
+
+  // Background refresh so replica counts follow node failures and repairs without clicking Refresh.
+  // It is silent: no spinner, no error banner, and it keeps the expanded row open.
+  const silentRefresh = useCallback(async () => {
+    if (downloadingId || deletingId) return;
+    try {
+      const result = await listFiles();
+      setFiles(result);
+      if (expandedId) {
+        try {
+          const details = await getFileDetails(expandedId);
+          setDetailsById((prev) => ({ ...prev, [expandedId]: details }));
+        } catch {
+          // The file may have just been deleted; the next list refresh drops the row.
+        }
+      }
+    } catch {
+      // Keep showing the last good data. The manual Refresh button reports errors.
+    }
+  }, [downloadingId, deletingId, expandedId]);
+
+  usePolling(silentRefresh, POLL_MS, { immediate: false });
 
   async function startDownload(fileId, filenameHint) {
     if (!fileId) {
@@ -182,7 +207,10 @@ export default function FilesPage() {
       </form>
 
       <div className="section-head">
-        <h3>Stored Files{!loading ? ` (${files.length})` : ""}</h3>
+        <h3>
+          Stored Files{!loading ? ` (${files.length})` : ""}
+          <span className="field-note"> · updates every {POLL_MS / 1000}s</span>
+        </h3>
         <button className="ghost-button" type="button" onClick={loadFiles} disabled={loading || busy}>
           {loading ? "Loading..." : "Refresh"}
         </button>
@@ -255,9 +283,16 @@ export default function FilesPage() {
                             <p className="field-note">Loading chunk details...</p>
                           ) : details ? (
                             <ul className="chunk-list">
-                              {details.chunks.map((chunk) => (
-                                <li className="chunk-item" key={chunk.chunkId}>
-                                  <strong>Chunk {chunk.chunkIndex}</strong>
+                              {details.chunks.map((chunk) => {
+                                const copies = chunk.nodeUrls.length;
+                                const tone = copies <= 0 ? "lost" : copies < details.targetReplicas ? "under" : "";
+                                return (
+                                <li className={`chunk-item ${tone}`.trim()} key={chunk.chunkId}>
+                                  <strong>
+                                    Chunk {chunk.chunkIndex}
+                                    {tone === "lost" ? <span className="chunk-flag bad">NO COPIES</span> : null}
+                                    {tone === "under" ? <span className="chunk-flag warn">UNDER-REPLICATED</span> : null}
+                                  </strong>
                                   <span className="chunk-meta">id: {chunk.chunkId}</span>
                                   <span className="chunk-meta">
                                     sha256: {chunk.checksum ? `${chunk.checksum.slice(0, 16)}...` : "-"}
@@ -267,7 +302,8 @@ export default function FilesPage() {
                                     {chunk.nodeUrls.length > 0 ? chunk.nodeUrls.join(", ") : "none"}
                                   </span>
                                 </li>
-                              ))}
+                                );
+                              })}
                             </ul>
                           ) : null}
                         </td>

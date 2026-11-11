@@ -1,13 +1,30 @@
 import { useCallback, useEffect, useState } from "react";
 import { getNodeStatus } from "../api";
+import { usePolling } from "../hooks/usePolling";
 
 const POLL_MS = 10000;
 
+function toDate(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const date = typeof value === "number" || /^\d+$/.test(String(value)) ? new Date(Number(value)) : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function toDisplayTime(value) {
   if (value === null || value === undefined || value === "") return "-";
-  const date = typeof value === "number" || /^\d+$/.test(String(value)) ? new Date(Number(value)) : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
+  const date = toDate(value);
+  return date ? date.toLocaleString() : String(value);
+}
+
+// "12s ago", "3m 05s ago" ... so a node going quiet is visible as it happens.
+function toAge(value, now) {
+  const date = toDate(value);
+  if (!date) return "";
+  const seconds = Math.max(0, Math.round((now - date.getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${String(seconds % 60).padStart(2, "0")}s ago`;
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m ago`;
 }
 
 function normalizeNode(node, index) {
@@ -31,6 +48,13 @@ export default function NodeStatusPage() {
   const [error, setError] = useState("");
   const [nodes, setNodes] = useState([]);
   const [lastUpdated, setLastUpdated] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+
+  // Tick every second so the "seen X ago" column moves between the 10-second data refreshes.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -46,11 +70,7 @@ export default function NodeStatusPage() {
     }
   }, []);
 
-  useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, POLL_MS);
-    return () => clearInterval(id);
-  }, [refresh]);
+  usePolling(refresh, POLL_MS);
 
   return (
     <section className="page">
@@ -80,6 +100,7 @@ export default function NodeStatusPage() {
                 <th>Node ID</th>
                 <th>Status</th>
                 <th>Last Heartbeat</th>
+                <th>Last Seen</th>
                 <th>Node URL</th>
               </tr>
             </thead>
@@ -91,6 +112,7 @@ export default function NodeStatusPage() {
                     <span className={`status-dot ${statusTone(node.status)}`}>{node.status}</span>
                   </td>
                   <td>{toDisplayTime(node.lastHeartbeat)}</td>
+                  <td>{toAge(node.lastHeartbeat, now) || "-"}</td>
                   <td>{node.nodeUrl}</td>
                 </tr>
               ))}

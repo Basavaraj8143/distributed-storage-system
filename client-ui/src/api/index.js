@@ -23,15 +23,8 @@ function createError(message, statusCode) {
   return error;
 }
 
-async function parseError(response) {
-  let text = "";
-  try {
-    text = await response.text();
-  } catch {
-    text = "";
-  }
-
-  // The master now returns JSON errors like { status, error, message, path }; show just the message.
+// The master returns JSON errors like { status, error, message, path }; show just the message.
+function extractErrorMessage(text) {
   let message = text;
   try {
     const parsed = JSON.parse(text);
@@ -41,8 +34,18 @@ async function parseError(response) {
   } catch {
     // Not JSON (plain text or empty): keep the raw text.
   }
+  return message;
+}
 
-  return createError(message || `Request failed (${response.status})`, response.status);
+async function parseError(response) {
+  let text = "";
+  try {
+    text = await response.text();
+  } catch {
+    text = "";
+  }
+
+  return createError(extractErrorMessage(text) || `Request failed (${response.status})`, response.status);
 }
 
 async function requestJson(path, options = {}) {
@@ -107,18 +110,56 @@ const mockData = {
   }
 };
 
-export async function uploadFile(file) {
+// Uses XMLHttpRequest instead of fetch because fetch cannot report upload progress.
+// onProgress(percent) is called with 0-100 as the bytes are sent to the master.
+export async function uploadFile(file, onProgress) {
   if (!file) throw createError("File is required for upload");
 
   if (USE_MOCK_API) {
+    onProgress?.(0);
     await sleep(MOCK_DELAY_MS);
+    onProgress?.(100);
     return mockData.upload;
   }
 
-  const formData = new FormData();
-  formData.append("file", file);
-  const raw = await requestJson(ENDPOINTS.upload, { method: "POST", body: formData });
-  return normalizeUploadResponse(raw);
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE_URL}${ENDPOINTS.upload}`);
+
+    xhr.upload.onprogress = (event) => {
+      if (onProgress && event.lengthComputable) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      const text = xhr.responseText || "";
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(createError(extractErrorMessage(text) || `Request failed (${xhr.status})`, xhr.status));
+        return;
+      }
+
+      let raw = text;
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        // Plain-text response: normalizeUploadResponse accepts a bare fileId string.
+      }
+
+      try {
+        resolve(normalizeUploadResponse(raw));
+      } catch (err) {
+        reject(err);
+      }
+    };
+
+    xhr.onerror = () => reject(createError("Could not reach the master service. Check that it is running.", 0));
+    xhr.onabort = () => reject(createError("Upload was cancelled.", 0));
+
+    const formData = new FormData();
+    formData.append("file", file);
+    xhr.send(formData);
+  });
 }
 
 export async function downloadFile(fileId) {

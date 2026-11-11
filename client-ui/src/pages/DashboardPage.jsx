@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { getNodeStatus, getSystemHealth } from "../api";
+import { usePolling } from "../hooks/usePolling";
 
 const POLL_MS = 10000;
 
@@ -45,11 +46,7 @@ export default function DashboardPage() {
     }
   }, []);
 
-  useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, POLL_MS);
-    return () => clearInterval(id);
-  }, [refresh]);
+  usePolling(refresh, POLL_MS);
 
   const statusClass = useMemo(() => {
     if (health.status === "HEALTHY") return "status-pill good";

@@ -339,6 +339,58 @@ body {
   font-size: 0.84rem;
 }
 
+.chunk-item.under {
+  border-color: #e9cb84;
+  background: #fffaf0;
+}
+
+.chunk-item.lost {
+  border-color: #e1a39a;
+  background: #fff5f3;
+}
+
+.chunk-flag {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.chunk-flag.warn {
+  background: #fff4dd;
+  color: #7e590a;
+  border-color: #e9cb84;
+}
+
+.chunk-flag.bad {
+  background: #fdeceb;
+  color: #8a2f27;
+  border-color: #e1a39a;
+}
+
+.progress-block {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 10px;
+  accent-color: var(--accent-2);
+}
+
+.success-line {
+  margin: 0 0 0.4rem;
+}
+
+.link-button {
+  display: inline-block;
+  text-decoration: none;
+}
+
 .chunk-meta {
   color: var(--muted);
   font-family: "IBM Plex Mono", monospace;
