@@ -5,7 +5,10 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "chunk_replica")
+// A node can hold a given chunk only once, so (chunk, node) must be unique.
+@Table(name = "chunk_replica", indexes = {
+        @Index(name = "ux_replica_chunk_node", columnList = "chunk_metadata_id, node_url", unique = true)
+})
 @Getter
 @Setter
 public class ChunkReplicaEntity {

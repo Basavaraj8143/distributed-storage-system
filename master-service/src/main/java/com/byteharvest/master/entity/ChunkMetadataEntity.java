@@ -5,9 +5,14 @@ import lombok.Getter;
 import lombok.Setter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Entity
-@Table(name = "chunk_metadata")
+// A file cannot have two chunks at the same position. Declared as a unique index (not uniqueConstraints)
+// because SQLite cannot add a constraint to an existing table, which is what ddl-auto=update would try.
+@Table(name = "chunk_metadata", indexes = {
+        @Index(name = "ux_chunk_file_index", columnList = "file_id, chunk_index", unique = true)
+})
 @Getter
 @Setter
 public class ChunkMetadataEntity {
@@ -30,4 +35,12 @@ public class ChunkMetadataEntity {
 
     @OneToMany(mappedBy = "chunkMetadata", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<ChunkReplicaEntity> replicas = new ArrayList<>();
+
+    /** The distinct nodes that hold a copy of this chunk. Behaviour that belongs to the chunk lives on the chunk. */
+    public List<String> replicaUrls() {
+        return replicas.stream()
+                .map(ChunkReplicaEntity::getNodeUrl)
+                .distinct()
+                .collect(Collectors.toList());
+    }
 }

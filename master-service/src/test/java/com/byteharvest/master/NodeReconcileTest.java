@@ -1,15 +1,13 @@
 package com.byteharvest.master;
 
+import com.byteharvest.master.client.RestStorageNodeClient;
 import com.byteharvest.master.config.StorageProperties;
 import com.byteharvest.master.entity.ChunkMetadataEntity;
 import com.byteharvest.master.entity.ChunkReplicaEntity;
 import com.byteharvest.master.model.ReconcileResult;
 import com.byteharvest.master.repository.ChunkMetadataRepository;
-import com.byteharvest.master.repository.ChunkReplicaRepository;
-import com.byteharvest.master.repository.FileMetadataRepository;
-import com.byteharvest.master.service.ChunkService;
+import com.byteharvest.master.service.ChunkRepairService;
 import com.byteharvest.master.service.EventLogService;
-import com.byteharvest.master.service.HeartbeatService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -44,7 +42,7 @@ class NodeReconcileTest {
     private static final byte[] CONTENT = "the real chunk content".getBytes(StandardCharsets.UTF_8);
     private static final byte[] CORRUPT = "not the real content".getBytes(StandardCharsets.UTF_8);
 
-    private ChunkService chunkService;
+    private ChunkRepairService repairService;
 
     @Mock
     private RestTemplate restTemplate;
@@ -53,24 +51,14 @@ class NodeReconcileTest {
     private EventLogService eventLogService;
 
     @Mock
-    private HeartbeatService heartbeatService;
-
-    @Mock
-    private FileMetadataRepository fileMetadataRepository;
-
-    @Mock
     private ChunkMetadataRepository chunkMetadataRepository;
-
-    @Mock
-    private ChunkReplicaRepository chunkReplicaRepository;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        chunkService = new ChunkService(
+        repairService = new ChunkRepairService(
                 new StorageProperties(2, 1024 * 1024, List.of(NODE_A, NODE_B, RETURNING)),
-                restTemplate, eventLogService, heartbeatService,
-                fileMetadataRepository, chunkMetadataRepository);
+                new RestStorageNodeClient(restTemplate), eventLogService, chunkMetadataRepository);
     }
 
     private static String sha256(byte[] data) {
@@ -114,7 +102,7 @@ class NodeReconcileTest {
         nodeReports("c1");
         nodeHolds("c1", CONTENT);
 
-        ReconcileResult result = chunkService.reconcileNode(RETURNING, Set.of(NODE_A, RETURNING));
+        ReconcileResult result = repairService.reconcileNode(RETURNING, Set.of(NODE_A, RETURNING));
 
         assertEquals(1, result.adopted());
         assertTrue(urlsOf(chunk).contains(RETURNING), "the replica record is written back into the metadata");
@@ -129,7 +117,7 @@ class NodeReconcileTest {
         nodeReports("c1");
         nodeHolds("c1", CONTENT);
 
-        ReconcileResult result = chunkService.reconcileNode(RETURNING, Set.of(NODE_A, RETURNING));
+        ReconcileResult result = repairService.reconcileNode(RETURNING, Set.of(NODE_A, RETURNING));
 
         assertEquals(1, result.adopted());
         assertTrue(urlsOf(chunk).contains(RETURNING));
@@ -141,7 +129,7 @@ class NodeReconcileTest {
         ChunkMetadataEntity chunk = knownChunk("c1", NODE_A, NODE_B);
         nodeReports("c1");
 
-        ReconcileResult result = chunkService.reconcileNode(RETURNING, Set.of(NODE_A, NODE_B, RETURNING));
+        ReconcileResult result = repairService.reconcileNode(RETURNING, Set.of(NODE_A, NODE_B, RETURNING));
 
         assertEquals(1, result.surplusRemoved());
         assertEquals(0, result.adopted());
@@ -156,7 +144,7 @@ class NodeReconcileTest {
         nodeReports("c1");
         nodeHolds("c1", CORRUPT);
 
-        ReconcileResult result = chunkService.reconcileNode(RETURNING, Set.of(NODE_A, RETURNING));
+        ReconcileResult result = repairService.reconcileNode(RETURNING, Set.of(NODE_A, RETURNING));
 
         assertEquals(1, result.corruptRemoved());
         assertEquals(0, result.adopted());
@@ -169,7 +157,7 @@ class NodeReconcileTest {
         ChunkMetadataEntity chunk = knownChunk("c1", NODE_A, RETURNING);
         nodeReports("c1");
 
-        ReconcileResult result = chunkService.reconcileNode(RETURNING, Set.of(NODE_A, RETURNING));
+        ReconcileResult result = repairService.reconcileNode(RETURNING, Set.of(NODE_A, RETURNING));
 
         assertEquals(ReconcileResult.EMPTY, result);
         verify(chunkMetadataRepository, never()).save(chunk);
@@ -181,7 +169,7 @@ class NodeReconcileTest {
         // No metadata for "mystery": a file deleted while the node was away, or an upload still in progress.
         nodeReports("mystery");
 
-        ReconcileResult result = chunkService.reconcileNode(RETURNING, Set.of(NODE_A, RETURNING));
+        ReconcileResult result = repairService.reconcileNode(RETURNING, Set.of(NODE_A, RETURNING));
 
         assertEquals(1, result.unknownKept());
         verify(restTemplate, never()).delete(anyString());
@@ -196,7 +184,7 @@ class NodeReconcileTest {
         when(restTemplate.getForObject(RETURNING + "/getChunk/c1", byte[].class)).thenThrow(new RuntimeException("boom"));
         nodeHolds("c2", CONTENT);
 
-        ReconcileResult result = chunkService.reconcileNode(RETURNING, Set.of(NODE_A, RETURNING));
+        ReconcileResult result = repairService.reconcileNode(RETURNING, Set.of(NODE_A, RETURNING));
 
         assertEquals(1, result.skipped());
         assertEquals(1, result.adopted());
@@ -207,6 +195,6 @@ class NodeReconcileTest {
     void failureToListChunksIsReportedSoTheCallerCanRetry() {
         when(restTemplate.getForObject(RETURNING + "/chunks", String[].class)).thenThrow(new RuntimeException("node down"));
 
-        assertThrows(RuntimeException.class, () -> chunkService.reconcileNode(RETURNING, Set.of(RETURNING)));
+        assertThrows(RuntimeException.class, () -> repairService.reconcileNode(RETURNING, Set.of(RETURNING)));
     }
 }

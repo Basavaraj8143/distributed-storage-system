@@ -1,5 +1,6 @@
 package com.byteharvest.master;
 
+import com.byteharvest.master.client.RestStorageNodeClient;
 import com.byteharvest.master.config.StorageProperties;
 import com.byteharvest.master.entity.ChunkMetadataEntity;
 import com.byteharvest.master.entity.ChunkReplicaEntity;
@@ -9,11 +10,10 @@ import com.byteharvest.master.exception.StoredFileNotFoundException;
 import com.byteharvest.master.model.FileDetails;
 import com.byteharvest.master.model.FileSummary;
 import com.byteharvest.master.repository.ChunkMetadataRepository;
-import com.byteharvest.master.repository.ChunkReplicaRepository;
 import com.byteharvest.master.repository.FileMetadataRepository;
-import com.byteharvest.master.service.ChunkService;
+import com.byteharvest.master.service.DownloadService;
 import com.byteharvest.master.service.EventLogService;
-import com.byteharvest.master.service.HeartbeatService;
+import com.byteharvest.master.service.FileManagementService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -37,7 +37,8 @@ class FileManagementServiceTest {
 
     private static final String FILE_ID = "123e4567-e89b-12d3-a456-426614174000";
 
-    private ChunkService chunkService;
+    private FileManagementService fileManagementService;
+    private DownloadService downloadService;
 
     @Mock
     private RestTemplate restTemplate;
@@ -46,24 +47,20 @@ class FileManagementServiceTest {
     private EventLogService eventLogService;
 
     @Mock
-    private HeartbeatService heartbeatService;
-
-    @Mock
     private FileMetadataRepository fileMetadataRepository;
 
     @Mock
     private ChunkMetadataRepository chunkMetadataRepository;
 
-    @Mock
-    private ChunkReplicaRepository chunkReplicaRepository;
-
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        chunkService = new ChunkService(
-                new StorageProperties(2, 1024 * 1024, List.of("http://localhost:5001", "http://localhost:5002", "http://localhost:5003")),
-                restTemplate, eventLogService, heartbeatService,
-                fileMetadataRepository, chunkMetadataRepository);
+        StorageProperties properties = new StorageProperties(2, 1024 * 1024,
+                List.of("http://localhost:5001", "http://localhost:5002", "http://localhost:5003"));
+        RestStorageNodeClient nodeClient = new RestStorageNodeClient(restTemplate);
+
+        fileManagementService = new FileManagementService(properties, nodeClient, eventLogService, fileMetadataRepository);
+        downloadService = new DownloadService(nodeClient, eventLogService, fileMetadataRepository, chunkMetadataRepository);
     }
 
     /** Builds a file whose chunk i has replicasPerChunk[i] replicas, on http://localhost:5001, 5002, ... */
@@ -97,7 +94,7 @@ class FileManagementServiceTest {
         FileMetadataEntity file = fileWithChunks("a.txt", 2, 2);
         when(fileMetadataRepository.findById(FILE_ID)).thenReturn(Optional.of(file));
 
-        chunkService.deleteFile(FILE_ID);
+        fileManagementService.deleteFile(FILE_ID);
 
         verify(fileMetadataRepository).delete(file);
         verify(restTemplate).delete("http://localhost:5001/deleteChunk/chunk-0");
@@ -113,7 +110,7 @@ class FileManagementServiceTest {
         when(fileMetadataRepository.findById(FILE_ID)).thenReturn(Optional.of(file));
         doThrow(new RuntimeException("node down")).when(restTemplate).delete("http://localhost:5002/deleteChunk/chunk-0");
 
-        chunkService.deleteFile(FILE_ID);
+        fileManagementService.deleteFile(FILE_ID);
 
         verify(fileMetadataRepository).delete(file);
         verify(restTemplate).delete("http://localhost:5001/deleteChunk/chunk-0");
@@ -124,7 +121,7 @@ class FileManagementServiceTest {
     void deleteUnknownFileThrowsNotFoundAndTouchesNothing() {
         when(fileMetadataRepository.findById(FILE_ID)).thenReturn(Optional.empty());
 
-        assertThrows(StoredFileNotFoundException.class, () -> chunkService.deleteFile(FILE_ID));
+        assertThrows(StoredFileNotFoundException.class, () -> fileManagementService.deleteFile(FILE_ID));
 
         verify(fileMetadataRepository, never()).delete(org.mockito.ArgumentMatchers.any(FileMetadataEntity.class));
         verify(restTemplate, never()).delete(anyString());
@@ -136,7 +133,7 @@ class FileManagementServiceTest {
     void listFilesReportsLowestReplicaCountAcrossChunks() {
         when(fileMetadataRepository.findAll()).thenReturn(List.of(fileWithChunks("a.txt", 2, 1)));
 
-        List<FileSummary> files = chunkService.listFiles();
+        List<FileSummary> files = fileManagementService.listFiles();
 
         assertEquals(1, files.size());
         assertEquals("a.txt", files.get(0).filename());
@@ -149,7 +146,7 @@ class FileManagementServiceTest {
     void getFileDetailsReturnsChunksInIndexOrderWithReplicaUrls() {
         when(fileMetadataRepository.findById(FILE_ID)).thenReturn(Optional.of(fileWithChunks("a.txt", 2, 2)));
 
-        FileDetails details = chunkService.getFileDetails(FILE_ID);
+        FileDetails details = fileManagementService.getFileDetails(FILE_ID);
 
         assertEquals(2, details.chunkCount());
         assertEquals("chunk-0", details.chunks().get(0).chunkId());
@@ -161,7 +158,7 @@ class FileManagementServiceTest {
     void getFileDetailsForUnknownFileThrowsNotFound() {
         when(fileMetadataRepository.findById(FILE_ID)).thenReturn(Optional.empty());
 
-        assertThrows(StoredFileNotFoundException.class, () -> chunkService.getFileDetails(FILE_ID));
+        assertThrows(StoredFileNotFoundException.class, () -> fileManagementService.getFileDetails(FILE_ID));
     }
 
     // ---- download errors are no longer wrapped in a generic RuntimeException ----
@@ -170,7 +167,7 @@ class FileManagementServiceTest {
     void downloadUnknownFileThrowsNotFound() {
         when(fileMetadataRepository.findById(FILE_ID)).thenReturn(Optional.empty());
 
-        assertThrows(StoredFileNotFoundException.class, () -> chunkService.download(FILE_ID));
+        assertThrows(StoredFileNotFoundException.class, () -> downloadService.download(FILE_ID));
     }
 
     @Test
@@ -178,6 +175,6 @@ class FileManagementServiceTest {
         when(fileMetadataRepository.findById(FILE_ID)).thenReturn(Optional.of(fileWithChunks("a.txt", 2)));
         when(restTemplate.getForObject(anyString(), eq(byte[].class))).thenThrow(new RuntimeException("node down"));
 
-        assertThrows(ChunkUnavailableException.class, () -> chunkService.download(FILE_ID));
+        assertThrows(ChunkUnavailableException.class, () -> downloadService.download(FILE_ID));
     }
 }

@@ -2,7 +2,7 @@
 
 How the replication factor, chunk size and node list moved out of hard-coded values and into validated configuration.
 
-Source: `StorageProperties`, `AppConfig`, `ChunkService` in `master-service`.
+Source: `StorageProperties`, `AppConfig`, `UploadService`, `FileManagementService`, `ChunkRepairService` in `master-service`. (`ChunkService`, which this document originally describes, has since been split; see `service-split.md`.)
 
 ## 1. Why
 

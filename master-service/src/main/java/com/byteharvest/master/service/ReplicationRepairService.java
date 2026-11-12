@@ -15,12 +15,12 @@ public class ReplicationRepairService {
     private static final Logger logger = LoggerFactory.getLogger(ReplicationRepairService.class);
 
     private final HeartbeatService heartbeatService;
-    private final ChunkService chunkService;
+    private final ChunkRepairService chunkRepairService;
     private final EventLogService eventLogService;
 
-    public ReplicationRepairService(HeartbeatService heartbeatService, ChunkService chunkService, EventLogService eventLogService) {
+    public ReplicationRepairService(HeartbeatService heartbeatService, ChunkRepairService chunkRepairService, EventLogService eventLogService) {
         this.heartbeatService = heartbeatService;
-        this.chunkService = chunkService;
+        this.chunkRepairService = chunkRepairService;
         this.eventLogService = eventLogService;
     }
 
@@ -31,12 +31,12 @@ public class ReplicationRepairService {
         reconcileReturningNodes();
 
         Set<String> failedNodeUrls = heartbeatService.getFailedNodeUrls();
-        int removedReplicaReferences = chunkService.removeFailedNodeReferences(failedNodeUrls);
+        int removedReplicaReferences = chunkRepairService.removeFailedNodeReferences(failedNodeUrls);
 
         Set<String> activeNodeUrls = heartbeatService.getActiveNodeUrls();
-        int corruptedRepaired = chunkService.verifyAndRepairCorruptions(activeNodeUrls);
+        int corruptedRepaired = chunkRepairService.verifyAndRepairCorruptions(activeNodeUrls);
 
-        int repairedReplicas = chunkService.repairUnderReplicatedChunks(activeNodeUrls);
+        int repairedReplicas = chunkRepairService.repairUnderReplicatedChunks(activeNodeUrls);
 
         if (removedReplicaReferences > 0 || repairedReplicas > 0 || corruptedRepaired > 0) {
             logger.info(
@@ -68,7 +68,7 @@ public class ReplicationRepairService {
             }
 
             try {
-                ReconcileResult result = chunkService.reconcileNode(nodeUrl, activeNodeUrls);
+                ReconcileResult result = chunkRepairService.reconcileNode(nodeUrl, activeNodeUrls);
                 if (result.hasChanges()) {
                     eventLogService.info("REPAIR", "Reconciled " + nodeUrl + ": adopted " + result.adopted()
                             + " chunks, removed " + result.surplusRemoved() + " surplus and " + result.corruptRemoved()

@@ -6,7 +6,9 @@ import com.byteharvest.master.exception.StoredFileNotFoundException;
 import com.byteharvest.master.model.ChunkInfo;
 import com.byteharvest.master.model.FileDetails;
 import com.byteharvest.master.model.FileSummary;
-import com.byteharvest.master.service.ChunkService;
+import com.byteharvest.master.service.DownloadService;
+import com.byteharvest.master.service.FileManagementService;
+import com.byteharvest.master.service.UploadService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -39,7 +41,13 @@ class FileControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private ChunkService chunkService;
+    private UploadService uploadService;
+
+    @MockitoBean
+    private DownloadService downloadService;
+
+    @MockitoBean
+    private FileManagementService fileManagementService;
 
     // ---- upload ----
 
@@ -51,7 +59,7 @@ class FileControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Uploaded file is empty."));
 
-        verify(chunkService, never()).handleUpload(any(MultipartFile.class), any());
+        verify(uploadService, never()).handleUpload(any(MultipartFile.class), any());
     }
 
     @Test
@@ -64,7 +72,7 @@ class FileControllerTest {
     @Test
     void uploadKeepsOnlyTheBaseFilename() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "C:\\docs\\..\\report.pdf", "application/pdf", "data".getBytes());
-        when(chunkService.handleUpload(any(MultipartFile.class), eq("report.pdf"))).thenReturn(FILE_ID);
+        when(uploadService.handleUpload(any(MultipartFile.class), eq("report.pdf"))).thenReturn(FILE_ID);
 
         mockMvc.perform(multipart("/upload").file(file))
                 .andExpect(status().isOk())
@@ -88,12 +96,12 @@ class FileControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Invalid file id format."));
 
-        verify(chunkService, never()).download(any());
+        verify(downloadService, never()).download(any());
     }
 
     @Test
     void downloadUnknownFileIsNotFound() throws Exception {
-        when(chunkService.download(FILE_ID)).thenThrow(new StoredFileNotFoundException(FILE_ID));
+        when(downloadService.download(FILE_ID)).thenThrow(new StoredFileNotFoundException(FILE_ID));
 
         mockMvc.perform(get("/download/" + FILE_ID))
                 .andExpect(status().isNotFound())
@@ -102,7 +110,7 @@ class FileControllerTest {
 
     @Test
     void downloadWithNoHealthyReplicaIsServiceUnavailable() throws Exception {
-        when(chunkService.download(FILE_ID)).thenThrow(new ChunkUnavailableException("All replicas failed"));
+        when(downloadService.download(FILE_ID)).thenThrow(new ChunkUnavailableException("All replicas failed"));
 
         mockMvc.perform(get("/download/" + FILE_ID))
                 .andExpect(status().isServiceUnavailable());
@@ -110,7 +118,7 @@ class FileControllerTest {
 
     @Test
     void unexpectedErrorsDoNotLeakDetails() throws Exception {
-        when(chunkService.download(FILE_ID)).thenThrow(new RuntimeException("jdbc:sqlite:secret-path failed"));
+        when(downloadService.download(FILE_ID)).thenThrow(new RuntimeException("jdbc:sqlite:secret-path failed"));
 
         mockMvc.perform(get("/download/" + FILE_ID))
                 .andExpect(status().isInternalServerError())
@@ -121,7 +129,7 @@ class FileControllerTest {
 
     @Test
     void listFilesReturnsSummaries() throws Exception {
-        when(chunkService.listFiles()).thenReturn(List.of(new FileSummary(FILE_ID, "a.txt", 3, 2, 2)));
+        when(fileManagementService.listFiles()).thenReturn(List.of(new FileSummary(FILE_ID, "a.txt", 3, 2, 2)));
 
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
@@ -135,7 +143,7 @@ class FileControllerTest {
     @Test
     void getFileReturnsChunkDetails() throws Exception {
         ChunkInfo chunk = new ChunkInfo("chunk-1", 0, "abc123", List.of("http://localhost:5001", "http://localhost:5002"));
-        when(chunkService.getFileDetails(FILE_ID)).thenReturn(new FileDetails(FILE_ID, "a.txt", 1, 2, List.of(chunk)));
+        when(fileManagementService.getFileDetails(FILE_ID)).thenReturn(new FileDetails(FILE_ID, "a.txt", 1, 2, List.of(chunk)));
 
         mockMvc.perform(get("/files/" + FILE_ID))
                 .andExpect(status().isOk())
@@ -146,7 +154,7 @@ class FileControllerTest {
 
     @Test
     void getUnknownFileIsNotFound() throws Exception {
-        when(chunkService.getFileDetails(FILE_ID)).thenThrow(new StoredFileNotFoundException(FILE_ID));
+        when(fileManagementService.getFileDetails(FILE_ID)).thenThrow(new StoredFileNotFoundException(FILE_ID));
 
         mockMvc.perform(get("/files/" + FILE_ID))
                 .andExpect(status().isNotFound());
@@ -157,12 +165,12 @@ class FileControllerTest {
         mockMvc.perform(delete("/files/" + FILE_ID))
                 .andExpect(status().isNoContent());
 
-        verify(chunkService).deleteFile(FILE_ID);
+        verify(fileManagementService).deleteFile(FILE_ID);
     }
 
     @Test
     void deleteUnknownFileIsNotFound() throws Exception {
-        doThrow(new StoredFileNotFoundException(FILE_ID)).when(chunkService).deleteFile(FILE_ID);
+        doThrow(new StoredFileNotFoundException(FILE_ID)).when(fileManagementService).deleteFile(FILE_ID);
 
         mockMvc.perform(delete("/files/" + FILE_ID))
                 .andExpect(status().isNotFound());
@@ -173,6 +181,6 @@ class FileControllerTest {
         mockMvc.perform(delete("/files/not-a-uuid"))
                 .andExpect(status().isBadRequest());
 
-        verify(chunkService, never()).deleteFile(any());
+        verify(fileManagementService, never()).deleteFile(any());
     }
 }

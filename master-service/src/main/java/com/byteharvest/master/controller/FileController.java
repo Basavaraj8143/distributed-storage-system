@@ -3,7 +3,9 @@ package com.byteharvest.master.controller;
 import com.byteharvest.master.exception.InvalidRequestException;
 import com.byteharvest.master.model.FileDetails;
 import com.byteharvest.master.model.FileSummary;
-import com.byteharvest.master.service.ChunkService;
+import com.byteharvest.master.service.DownloadService;
+import com.byteharvest.master.service.FileManagementService;
+import com.byteharvest.master.service.UploadService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.MediaTypeFactory;
@@ -25,10 +27,16 @@ public class FileController {
     private static final int MAX_FILENAME_LENGTH = 255;
     private static final String DEFAULT_FILENAME = "unnamed";
 
-    private final ChunkService chunkService;
+    private final UploadService uploadService;
+    private final DownloadService downloadService;
+    private final FileManagementService fileManagementService;
 
-    public FileController(ChunkService chunkService) {
-        this.chunkService = chunkService;
+    public FileController(UploadService uploadService,
+                          DownloadService downloadService,
+                          FileManagementService fileManagementService) {
+        this.uploadService = uploadService;
+        this.downloadService = downloadService;
+        this.fileManagementService = fileManagementService;
     }
 
     @PostMapping("/upload")
@@ -38,7 +46,7 @@ public class FileController {
         }
 
         String filename = sanitizeFilename(file.getOriginalFilename());
-        String fileId = chunkService.handleUpload(file, filename);
+        String fileId = uploadService.handleUpload(file, filename);
         return ResponseEntity.ok(fileId);
     }
 
@@ -46,8 +54,8 @@ public class FileController {
     public ResponseEntity<byte[]> download(@PathVariable String fileId) {
         requireValidFileId(fileId);
 
-        byte[] data = chunkService.download(fileId);
-        String filename = chunkService.getOriginalFileName(fileId);
+        byte[] data = downloadService.download(fileId);
+        String filename = fileManagementService.getOriginalFileName(fileId);
         MediaType mediaType = resolveContentType(filename, data);
 
         return ResponseEntity.ok()
@@ -58,19 +66,19 @@ public class FileController {
 
     @GetMapping("/files")
     public List<FileSummary> listFiles() {
-        return chunkService.listFiles();
+        return fileManagementService.listFiles();
     }
 
     @GetMapping("/files/{fileId}")
     public FileDetails getFile(@PathVariable String fileId) {
         requireValidFileId(fileId);
-        return chunkService.getFileDetails(fileId);
+        return fileManagementService.getFileDetails(fileId);
     }
 
     @DeleteMapping("/files/{fileId}")
     public ResponseEntity<Void> deleteFile(@PathVariable String fileId) {
         requireValidFileId(fileId);
-        chunkService.deleteFile(fileId);
+        fileManagementService.deleteFile(fileId);
         return ResponseEntity.noContent().build();
     }
 

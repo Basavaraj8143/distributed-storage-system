@@ -2,7 +2,7 @@
 
 How the master keeps every chunk at the target replica count when nodes go quiet, die, come back, or hold bad data.
 
-Source: `HeartbeatService`, `ReplicationRepairService`, `ChunkService` in `master-service`.
+Source: `HeartbeatService`, `ReplicationRepairService`, `ChunkRepairService` in `master-service`.
 
 ## 1. Constants
 
