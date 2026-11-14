@@ -5,15 +5,17 @@ import com.byteharvest.master.config.StorageProperties;
 import com.byteharvest.master.entity.ChunkMetadataEntity;
 import com.byteharvest.master.entity.ChunkReplicaEntity;
 import com.byteharvest.master.model.ReconcileResult;
+import com.byteharvest.master.placement.PlacementStrategy;
 import com.byteharvest.master.repository.ChunkMetadataRepository;
 import com.byteharvest.master.util.Checksums;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -26,15 +28,18 @@ public class ChunkRepairService {
 
     private final StorageProperties properties;
     private final StorageNodeClient nodeClient;
+    private final PlacementStrategy placementStrategy;
     private final EventLogService eventLogService;
     private final ChunkMetadataRepository chunkMetadataRepository;
 
     public ChunkRepairService(StorageProperties properties,
                               StorageNodeClient nodeClient,
+                              PlacementStrategy placementStrategy,
                               EventLogService eventLogService,
                               ChunkMetadataRepository chunkMetadataRepository) {
         this.properties = properties;
         this.nodeClient = nodeClient;
+        this.placementStrategy = placementStrategy;
         this.eventLogService = eventLogService;
         this.chunkMetadataRepository = chunkMetadataRepository;
     }
@@ -88,11 +93,16 @@ public class ChunkRepairService {
                 continue;
             }
 
-            Set<String> candidateTargets = new LinkedHashSet<>(activeNodeUrls);
+            List<String> candidateTargets = new ArrayList<>(activeNodeUrls);
             candidateTargets.removeAll(replicas);
 
-            while (replicas.size() < properties.replicationFactor() && !candidateTargets.isEmpty()) {
-                String targetNode = candidateTargets.iterator().next();
+            while (replicas.size() < properties.replicationFactor()) {
+                // The strategy sees where the chunk already lives, so it can place the new copy sensibly.
+                Optional<String> next = placementStrategy.chooseNext(candidateTargets, Collections.unmodifiableList(replicas));
+                if (next.isEmpty()) {
+                    break;
+                }
+                String targetNode = next.get();
                 candidateTargets.remove(targetNode);
 
                 try {

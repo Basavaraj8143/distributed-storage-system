@@ -6,6 +6,7 @@ import com.byteharvest.master.entity.ChunkMetadataEntity;
 import com.byteharvest.master.entity.ChunkReplicaEntity;
 import com.byteharvest.master.entity.FileMetadataEntity;
 import com.byteharvest.master.exception.InsufficientNodesException;
+import com.byteharvest.master.placement.PlacementStrategy;
 import com.byteharvest.master.repository.ChunkMetadataRepository;
 import com.byteharvest.master.repository.FileMetadataRepository;
 import com.byteharvest.master.util.Checksums;
@@ -17,7 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -28,6 +29,7 @@ public class UploadService {
 
     private final StorageProperties properties;
     private final StorageNodeClient nodeClient;
+    private final PlacementStrategy placementStrategy;
     private final EventLogService eventLogService;
     private final HeartbeatService heartbeatService;
     private final FileMetadataRepository fileMetadataRepository;
@@ -35,12 +37,14 @@ public class UploadService {
 
     public UploadService(StorageProperties properties,
                          StorageNodeClient nodeClient,
+                         PlacementStrategy placementStrategy,
                          EventLogService eventLogService,
                          HeartbeatService heartbeatService,
                          FileMetadataRepository fileMetadataRepository,
                          ChunkMetadataRepository chunkMetadataRepository) {
         this.properties = properties;
         this.nodeClient = nodeClient;
+        this.placementStrategy = placementStrategy;
         this.eventLogService = eventLogService;
         this.heartbeatService = heartbeatService;
         this.fileMetadataRepository = fileMetadataRepository;
@@ -74,7 +78,7 @@ public class UploadService {
 
                 String chunkId = UUID.randomUUID().toString();
                 String checksum = Checksums.sha256(chunk);
-                List<String> selectedNodes = storeChunkOnReplicas(chunkId, chunk, chunkIndex);
+                List<String> selectedNodes = storeChunkOnReplicas(chunkId, chunk);
 
                 ChunkMetadataEntity chunkEntity = new ChunkMetadataEntity();
                 chunkEntity.setChunkId(chunkId);
@@ -109,24 +113,27 @@ public class UploadService {
 
     /**
      * Stores the chunk on storage.replication-factor nodes. Candidates are the configured nodes that are
-     * currently sending heartbeats, in random order. If a send fails (for example the node died
-     * within the heartbeat timeout), the next candidate is tried instead.
+     * currently sending heartbeats; the PlacementStrategy picks which one gets each copy. If a send fails
+     * (for example the node died within the heartbeat timeout), that node is dropped from the candidates
+     * and the strategy is asked again.
      *
      * @return the nodes that now hold the chunk
      */
-    private List<String> storeChunkOnReplicas(String chunkId, byte[] chunk, int chunkIndex) {
+    private List<String> storeChunkOnReplicas(String chunkId, byte[] chunk) {
         Set<String> activeNodeUrls = heartbeatService.getActiveNodeUrls();
 
         List<String> candidates = properties.nodes().stream()
                 .filter(activeNodeUrls::contains)
                 .collect(Collectors.toCollection(ArrayList::new));
-        Collections.shuffle(candidates, new Random(chunkIndex + System.nanoTime()));
 
         List<String> stored = new ArrayList<>();
-        for (String nodeUrl : candidates) {
-            if (stored.size() == properties.replicationFactor()) {
+        while (stored.size() < properties.replicationFactor()) {
+            Optional<String> next = placementStrategy.chooseNext(candidates, Collections.unmodifiableList(stored));
+            if (next.isEmpty()) {
                 break;
             }
+            String nodeUrl = next.get();
+            candidates.remove(nodeUrl);
             try {
                 nodeClient.storeChunk(nodeUrl, chunkId, chunk);
                 stored.add(nodeUrl);

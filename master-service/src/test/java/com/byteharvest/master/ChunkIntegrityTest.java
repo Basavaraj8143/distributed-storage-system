@@ -7,6 +7,7 @@ import com.byteharvest.master.entity.ChunkMetadataEntity;
 import com.byteharvest.master.entity.ChunkReplicaEntity;
 import com.byteharvest.master.entity.FileMetadataEntity;
 import com.byteharvest.master.exception.InsufficientNodesException;
+import com.byteharvest.master.placement.RandomPlacementStrategy;
 import com.byteharvest.master.repository.ChunkMetadataRepository;
 import com.byteharvest.master.repository.FileMetadataRepository;
 import com.byteharvest.master.service.ChunkRepairService;
@@ -63,14 +64,14 @@ class ChunkIntegrityTest {
     private UploadService uploadServiceWith(int replicationFactor, int chunkSizeBytes) {
         return new UploadService(
                 new StorageProperties(replicationFactor, chunkSizeBytes, FIVE_NODES),
-                nodeClient(), eventLogService, heartbeatService,
+                nodeClient(), new RandomPlacementStrategy(), eventLogService, heartbeatService,
                 fileMetadataRepository, chunkMetadataRepository);
     }
 
     private ChunkRepairService repairServiceWith(int replicationFactor) {
         return new ChunkRepairService(
                 new StorageProperties(replicationFactor, 1024 * 1024, FIVE_NODES),
-                nodeClient(), eventLogService, chunkMetadataRepository);
+                nodeClient(), new RandomPlacementStrategy(), eventLogService, chunkMetadataRepository);
     }
 
     @BeforeEach

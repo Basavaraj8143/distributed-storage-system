@@ -5,6 +5,7 @@ import com.byteharvest.master.config.StorageProperties;
 import com.byteharvest.master.entity.ChunkMetadataEntity;
 import com.byteharvest.master.entity.ChunkReplicaEntity;
 import com.byteharvest.master.model.ReconcileResult;
+import com.byteharvest.master.placement.RandomPlacementStrategy;
 import com.byteharvest.master.repository.ChunkMetadataRepository;
 import com.byteharvest.master.service.ChunkRepairService;
 import com.byteharvest.master.service.EventLogService;
@@ -58,7 +59,7 @@ class NodeReconcileTest {
         MockitoAnnotations.openMocks(this);
         repairService = new ChunkRepairService(
                 new StorageProperties(2, 1024 * 1024, List.of(NODE_A, NODE_B, RETURNING)),
-                new RestStorageNodeClient(restTemplate), eventLogService, chunkMetadataRepository);
+                new RestStorageNodeClient(restTemplate), new RandomPlacementStrategy(), eventLogService, chunkMetadataRepository);
     }
 
     private static String sha256(byte[] data) {

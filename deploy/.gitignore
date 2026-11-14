@@ -1,0 +1,2 @@
+# The password file lives only on the server.
+.htpasswd
