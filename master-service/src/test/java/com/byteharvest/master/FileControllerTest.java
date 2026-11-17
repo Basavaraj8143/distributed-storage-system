@@ -1,5 +1,6 @@
 package com.byteharvest.master;
 
+import com.byteharvest.master.config.SecurityConfig;
 import com.byteharvest.master.controller.FileController;
 import com.byteharvest.master.exception.ChunkUnavailableException;
 import com.byteharvest.master.exception.StoredFileNotFoundException;
@@ -12,7 +13,10 @@ import com.byteharvest.master.service.UploadService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,7 +36,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+// These tests are about the controller's behaviour, so every request runs as a logged-in user.
+// Whether a request needs a login at all is covered by SecurityConfigTest.
 @WebMvcTest(FileController.class)
+@Import(SecurityConfig.class)
+@TestPropertySource(properties = {"app.auth.username=tester", "app.auth.password=test-password"})
+@WithMockUser
 class FileControllerTest {
 
     private static final String FILE_ID = "123e4567-e89b-12d3-a456-426614174000";

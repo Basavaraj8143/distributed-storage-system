@@ -31,6 +31,10 @@ services:
       # Copies kept of every chunk. Must not exceed the number of nodes in STORAGE_NODES.
       STORAGE_REPLICATION_FACTOR: 2
       STORAGE_CHUNK_SIZE_BYTES: 1048576
+      # Login for the UI and API. Must be the SAME user and password as in deploy/.htpasswd:
+      # nginx and the master both read the one Authorization header the UI sends.
+      APP_USERNAME: ${APP_USERNAME:-admin}
+      APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in .env (copy .env.example)}
       STORAGE_NODES: http://storage-node-1:5001,http://storage-node-2:5002,http://storage-node-3:5003,http://storage-node-4:5004,http://storage-node-5:5005
       JAVA_TOOL_OPTIONS: "-Xmx512m -XX:+UseSerialGC"
     expose:

@@ -7,6 +7,9 @@ build/
 *.war
 *.ear
 
+# Secrets (only the root .env; client-ui/.env holds non-secret settings)
+/storage-node/.env
+
 # Logs
 logs/
 *.log

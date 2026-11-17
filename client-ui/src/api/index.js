@@ -13,6 +13,105 @@ const ENDPOINTS = {
 
 const MOCK_DELAY_MS = Number(import.meta.env.VITE_MOCK_DELAY_MS || 250);
 
+// ---- Authentication ----
+// The master uses HTTP Basic. The login header is kept in sessionStorage, so a page refresh keeps
+// you signed in but closing the tab signs you out. It is not in localStorage, so it does not
+// outlive the tab. Trade-off: any script running on the page could read it (XSS); a short-lived
+// token (phase 3) is the proper fix.
+const SESSION_ENDED_MESSAGE = "Your sign-in is no longer valid. Please sign in again.";
+const AUTH_STORAGE_KEY = "byteharvest.auth";
+
+function loadStoredAuth() {
+  try {
+    return sessionStorage.getItem(AUTH_STORAGE_KEY);
+  } catch {
+    return null; // storage blocked (private mode, browser settings): just stay signed out after a refresh
+  }
+}
+
+function storeAuth(header) {
+  try {
+    if (header) sessionStorage.setItem(AUTH_STORAGE_KEY, header);
+    else sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  } catch {
+    // Ignore: the in-memory copy below still works for this page load.
+  }
+}
+
+let authHeader = loadStoredAuth();
+let unauthorizedHandler = null;
+
+function toBase64(text) {
+  // btoa only accepts Latin-1, so encode as UTF-8 bytes first (a password may contain any character).
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function basicHeader(username, password) {
+  return `Basic ${toBase64(`${username}:${password}`)}`;
+}
+
+export function isAuthenticated() {
+  return authHeader !== null;
+}
+
+export function clearCredentials() {
+  authHeader = null;
+  storeAuth(null);
+}
+
+// The app registers a function here that shows the login page again.
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = handler;
+}
+
+function handleUnauthorized() {
+  clearCredentials();
+  unauthorizedHandler?.();
+}
+
+// Checks the credentials against the master and keeps them (for this tab) only if they are accepted.
+export async function login(username, password) {
+  if (!username || !password) throw createError("Username and password are required.", 400);
+
+  if (USE_MOCK_API) {
+    authHeader = basicHeader(username, password);
+    storeAuth(authHeader);
+    return;
+  }
+
+  let response;
+  try {
+    response = await fetch(`${BASE_URL}${ENDPOINTS.systemHealth}`, {
+      headers: { Authorization: basicHeader(username, password) }
+    });
+  } catch {
+    throw createError("Could not reach the master service. Check that it is running.", 0);
+  }
+
+  if (response.status === 401) throw createError("Wrong username or password.", 401);
+  if (!response.ok) throw await parseError(response);
+  authHeader = basicHeader(username, password);
+  storeAuth(authHeader);
+}
+
+// Every request to the master goes through here so the login header is never forgotten.
+async function apiFetch(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (authHeader) headers.set("Authorization", authHeader);
+
+  const response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  if (response.status === 401) {
+    handleUnauthorized();
+    throw createError(SESSION_ENDED_MESSAGE, 401);
+  }
+  return response;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -49,7 +148,7 @@ async function parseError(response) {
 }
 
 async function requestJson(path, options = {}) {
-  const response = await fetch(`${BASE_URL}${path}`, options);
+  const response = await apiFetch(path, options);
   if (!response.ok) throw await parseError(response);
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
@@ -61,7 +160,7 @@ async function requestJson(path, options = {}) {
 }
 
 async function requestBlob(path, options = {}) {
-  const response = await fetch(`${BASE_URL}${path}`, options);
+  const response = await apiFetch(path, options);
   if (!response.ok) throw await parseError(response);
   const blob = await response.blob();
   const contentDisposition = response.headers.get("content-disposition") || "";
@@ -74,7 +173,7 @@ async function requestBlob(path, options = {}) {
 }
 
 async function requestText(path, options = {}) {
-  const response = await fetch(`${BASE_URL}${path}`, options);
+  const response = await apiFetch(path, options);
   if (!response.ok) throw await parseError(response);
   return response.text();
 }
@@ -125,6 +224,7 @@ export async function uploadFile(file, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${BASE_URL}${ENDPOINTS.upload}`);
+    if (authHeader) xhr.setRequestHeader("Authorization", authHeader);
 
     xhr.upload.onprogress = (event) => {
       if (onProgress && event.lengthComputable) {
@@ -134,6 +234,11 @@ export async function uploadFile(file, onProgress) {
 
     xhr.onload = () => {
       const text = xhr.responseText || "";
+      if (xhr.status === 401) {
+        handleUnauthorized();
+        reject(createError(SESSION_ENDED_MESSAGE, 401));
+        return;
+      }
       if (xhr.status < 200 || xhr.status >= 300) {
         reject(createError(extractErrorMessage(text) || `Request failed (${xhr.status})`, xhr.status));
         return;
