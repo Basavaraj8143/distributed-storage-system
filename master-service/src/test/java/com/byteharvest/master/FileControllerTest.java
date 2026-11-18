@@ -40,7 +40,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 // Whether a request needs a login at all is covered by SecurityConfigTest.
 @WebMvcTest(FileController.class)
 @Import(SecurityConfig.class)
-@TestPropertySource(properties = {"app.auth.username=tester", "app.auth.password=test-password"})
+@TestPropertySource(properties = {
+        "app.auth.username=tester",
+        "app.auth.password=test-password",
+        "app.node.token=test-node-token-0123456789"})
 @WithMockUser
 class FileControllerTest {
 

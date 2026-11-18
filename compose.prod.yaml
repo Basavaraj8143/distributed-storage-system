@@ -19,6 +19,8 @@ x-storage-node: &storage-node
 x-node-env: &node-env
   HEARTBEAT_MASTER_URL: http://master:8080/heartbeat
   STORAGE_BASE_DIR: /data
+  # Secret shared with the master (same value). Every node request must carry it.
+  NODE_TOKEN: ${NODE_TOKEN:?Set NODE_TOKEN in .env (copy .env.example)}
   JAVA_TOOL_OPTIONS: "-Xmx192m -XX:+UseSerialGC"
 
 services:
@@ -35,6 +37,8 @@ services:
       # nginx and the master both read the one Authorization header the UI sends.
       APP_USERNAME: ${APP_USERNAME:-admin}
       APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in .env (copy .env.example)}
+      # Secret shared with every storage node. Must be the same value on the master and the nodes.
+      NODE_TOKEN: ${NODE_TOKEN:?Set NODE_TOKEN in .env (copy .env.example)}
       STORAGE_NODES: http://storage-node-1:5001,http://storage-node-2:5002,http://storage-node-3:5003,http://storage-node-4:5004,http://storage-node-5:5005
       JAVA_TOOL_OPTIONS: "-Xmx512m -XX:+UseSerialGC"
     expose:

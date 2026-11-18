@@ -9,12 +9,21 @@ import org.springframework.web.client.RestTemplate;
 
 // this annotation is used in java for Annotation ConfigApplication context
 @Configuration
-@EnableConfigurationProperties(StorageProperties.class)
+@EnableConfigurationProperties({StorageProperties.class, NodeAuthProperties.class})
 public class AppConfig {
 
+    /**
+     * The master only ever calls storage nodes with this RestTemplate, so every outgoing request
+     * carries the shared node token. The nodes reject calls without it.
+     */
     @Bean
-    public RestTemplate restTemplate() {
-        return new RestTemplate();
+    public RestTemplate restTemplate(NodeAuthProperties nodeAuth) {
+        RestTemplate restTemplate = new RestTemplate();
+        restTemplate.getInterceptors().add((request, body, execution) -> {
+            request.getHeaders().set(NodeTokenFilter.HEADER, nodeAuth.token());
+            return execution.execute(request, body);
+        });
+        return restTemplate;
     }
 
     @Bean

@@ -16,26 +16,29 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
 /**
- * Phase 1 of authentication: HTTP Basic for everything a user can reach.
+ * Authentication for the master.
  *
  * <ul>
- *   <li>Every endpoint needs the login from {@link AuthProperties}, except {@code POST /heartbeat}.</li>
- *   <li>{@code POST /heartbeat} stays open for now because the storage nodes cannot authenticate yet.
- *       Phase 2 (a shared node token) closes it.</li>
+ *   <li>Phase 1: every endpoint needs the login from {@link AuthProperties} (HTTP Basic), except
+ *       {@code POST /heartbeat}.</li>
+ *   <li>Phase 2: {@code POST /heartbeat} is for storage nodes, which have no login. It needs the shared
+ *       node token instead, checked by {@link NodeTokenFilter} before the request reaches the controller.</li>
  *   <li>No sessions and no CSRF token: the API is stateless and every request carries its own credentials.</li>
  * </ul>
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(AuthProperties.class)
+@EnableConfigurationProperties({AuthProperties.class, NodeAuthProperties.class})
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, NodeAuthProperties nodeAuth) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
+                .addFilterBefore(new NodeTokenFilter(nodeAuth.token()), BasicAuthenticationFilter.class)
                 // Uses the CORS mapping already declared in AppConfig.
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -43,6 +46,7 @@ public class SecurityConfig {
                         // Error pages must not be hidden behind a 401, or every 400/404 would look like a login problem.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // No user login here: nodes prove themselves with the node token (NodeTokenFilter).
                         .requestMatchers(HttpMethod.POST, "/heartbeat").permitAll()
                         .anyRequest().authenticated())
                 // The usual Basic challenge header makes browsers open their own login dialog.

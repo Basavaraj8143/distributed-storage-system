@@ -10,6 +10,8 @@ services:
       # Login for the UI and API. Set APP_PASSWORD in a .env file next to this file (see .env.example).
       APP_USERNAME: ${APP_USERNAME:-admin}
       APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in .env (copy .env.example)}
+      # Secret shared with every storage node. Must be the same value on the master and the nodes.
+      NODE_TOKEN: ${NODE_TOKEN:?Set NODE_TOKEN in .env (copy .env.example)}
       STORAGE_NODES: http://storage-node-1:5001,http://storage-node-2:5002,http://storage-node-3:5003,http://storage-node-4:5004,http://storage-node-5:5005
     ports:
       - "8080:8080"
@@ -33,6 +35,7 @@ services:
       context: ./storage-node
     environment:
       SERVER_PORT: 5001
+      NODE_TOKEN: ${NODE_TOKEN:?Set NODE_TOKEN in .env (copy .env.example)}
       HEARTBEAT_MASTER_URL: http://master:8080/heartbeat
       STORAGE_NODE_URL: http://storage-node-1:5001
       STORAGE_BASE_DIR: /data
@@ -47,6 +50,7 @@ services:
       context: ./storage-node
     environment:
       SERVER_PORT: 5002
+      NODE_TOKEN: ${NODE_TOKEN:?Set NODE_TOKEN in .env (copy .env.example)}
       HEARTBEAT_MASTER_URL: http://master:8080/heartbeat
       STORAGE_NODE_URL: http://storage-node-2:5002
       STORAGE_BASE_DIR: /data
@@ -61,6 +65,7 @@ services:
       context: ./storage-node
     environment:
       SERVER_PORT: 5003
+      NODE_TOKEN: ${NODE_TOKEN:?Set NODE_TOKEN in .env (copy .env.example)}
       HEARTBEAT_MASTER_URL: http://master:8080/heartbeat
       STORAGE_NODE_URL: http://storage-node-3:5003
       STORAGE_BASE_DIR: /data
@@ -75,6 +80,7 @@ services:
       context: ./storage-node
     environment:
       SERVER_PORT: 5004
+      NODE_TOKEN: ${NODE_TOKEN:?Set NODE_TOKEN in .env (copy .env.example)}
       HEARTBEAT_MASTER_URL: http://master:8080/heartbeat
       STORAGE_NODE_URL: http://storage-node-4:5004
       STORAGE_BASE_DIR: /data
@@ -89,6 +95,7 @@ services:
       context: ./storage-node
     environment:
       SERVER_PORT: 5005
+      NODE_TOKEN: ${NODE_TOKEN:?Set NODE_TOKEN in .env (copy .env.example)}
       HEARTBEAT_MASTER_URL: http://master:8080/heartbeat
       STORAGE_NODE_URL: http://storage-node-5:5005
       STORAGE_BASE_DIR: /data

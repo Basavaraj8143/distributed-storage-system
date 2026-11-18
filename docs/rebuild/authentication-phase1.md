@@ -54,4 +54,4 @@ curl -i -u admin:YOUR_PASSWORD http://localhost:8080/files  # 200
 - **Basic auth over plain HTTP is readable on the network.** Use HTTPS before this is exposed beyond your own machine or a firewalled address.
 - **Production compose:** nginx's `auth_basic` and the master both read the same `Authorization` header that the UI sends. `deploy/.htpasswd` must therefore contain the same user and password as `APP_USERNAME` and `APP_PASSWORD`.
 - **One shared login, not user accounts.** Everyone who knows the password sees every file. Per-user accounts and file ownership are phase 3.
-- **`POST /heartbeat` is still open.** Until phase 2, a fake node can still register itself if it can reach the master.
+- **`POST /heartbeat` was left open in phase 1.** Phase 2 closes it with a shared node token; see `authentication-phase2.md`.

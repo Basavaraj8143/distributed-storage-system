@@ -25,13 +25,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Phase 1 rules: a login is needed everywhere except {@code POST /heartbeat}. */
+/**
+ * Phase 1: a login is needed everywhere except {@code POST /heartbeat}.
+ * Phase 2: {@code POST /heartbeat} needs the shared node token instead.
+ */
 @WebMvcTest({FileController.class, HeartbeatController.class})
 @Import(SecurityConfig.class)
-@TestPropertySource(properties = {"app.auth.username=admin", "app.auth.password=s3cret"})
+@TestPropertySource(properties = {
+        "app.auth.username=admin",
+        "app.auth.password=s3cret",
+        "app.node.token=test-node-token-0123456789"})
 class SecurityConfigTest {
 
     private static final String FILE_ID = "123e4567-e89b-12d3-a456-426614174000";
+    private static final String NODE_TOKEN = "test-node-token-0123456789";
 
     @Autowired
     private MockMvc mockMvc;
@@ -88,11 +95,44 @@ class SecurityConfigTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    // ---- phase 2: heartbeat and the node token ----
+
     @Test
-    void heartbeatStaysOpenUntilPhaseTwo() throws Exception {
-        // An empty body is a 400 from the controller, which shows the request got past security.
+    void heartbeatWithoutNodeTokenIsUnauthorized() throws Exception {
         mockMvc.perform(post("/heartbeat").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void heartbeatWithWrongNodeTokenIsUnauthorized() throws Exception {
+        mockMvc.perform(post("/heartbeat")
+                        .header("X-Node-Token", "not-the-right-token-at-all")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void heartbeatWithNodeTokenReachesTheController() throws Exception {
+        // An empty body is a 400 from the controller, which shows the request got past security.
+        // No user login is sent: a node does not have one.
+        mockMvc.perform(post("/heartbeat")
+                        .header("X-Node-Token", NODE_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void userLoginDoesNotReplaceTheNodeToken() throws Exception {
+        mockMvc.perform(post("/heartbeat")
+                        .with(httpBasic("admin", "s3cret"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void nodeTokenDoesNotOpenUserEndpoints() throws Exception {
+        mockMvc.perform(get("/files").header("X-Node-Token", NODE_TOKEN))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
