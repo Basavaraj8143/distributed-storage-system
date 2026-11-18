@@ -74,7 +74,7 @@ Compose starts the master, dashboard, and five storage nodes. Metadata and node 
 
 ## Run Services without Docker
 
-Prerequisites: Java 17, Maven, Node.js 20, and npm. The master and each storage node require a password and shared node token; provide them as environment variables before starting. The master accepts `APP_USERNAME` (default `admin`), `APP_PASSWORD`, `NODE_TOKEN`, and optionally `STORAGE_NODES`. Each node needs the same `NODE_TOKEN`; configure its port and heartbeat URL as needed.
+Prerequisites: Java 17, Maven, Node.js 24, and npm. The master and each storage node require a password and shared node token; provide them as environment variables before starting. The master accepts `APP_USERNAME` (default `admin`), `APP_PASSWORD`, `NODE_TOKEN`, and optionally `STORAGE_NODES`. Each node needs the same `NODE_TOKEN`; configure its port and heartbeat URL as needed.
 
 Start the master from the repository root:
 
