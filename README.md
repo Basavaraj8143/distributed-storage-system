@@ -1,372 +1,191 @@
 # ByteHarvest Distributed Storage System
 
-A final-year distributed systems project demonstrating chunk-based file storage, metadata coordination, replication, node health monitoring, and self-healing recovery - inspired by GFS and HDFS, but small enough to run and understand on a single developer machine.
+ByteHarvest is a learning project that stores files as chunks across multiple storage nodes. A Spring Boot master coordinates chunk placement, metadata, downloads, node health, and replica repair. A React dashboard provides the operator interface.
 
-![Java](https://img.shields.io/badge/Java-17-blue?style=flat-square)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-Master%203.x%20%7C%20Node%204.x-brightgreen?style=flat-square)
-![React](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-61DAFB?style=flat-square)
-![SQLite](https://img.shields.io/badge/Metadata-SQLite-003B57?style=flat-square)
-![CI](https://img.shields.io/badge/CI-GitHub%20Actions-black?style=flat-square)
-![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
+## Features
 
----
-
-## Table of Contents
-
-- [Highlights](#highlights)
-- [Architecture](#architecture)
-- [Deployment on College Private Cloud](#deployment-on-college-private-cloud)
-- [Repository Structure](#repository-structure)
-- [Tech Stack](#tech-stack)
-- [Services and Ports](#services-and-ports)
-- [Quick Start](#quick-start)
-- [Core Workflow](#core-workflow)
-- [API Overview](#api-overview)
-- [Example cURL Commands](#example-curl-commands)
-- [Configuration](#configuration)
-- [Testing and Build](#testing-and-build)
-- [CI/CD](#cicd)
-- [Implemented Concepts](#implemented-concepts)
-- [Known Limitations](#known-limitations)
-- [Roadmap](#roadmap)
-- [Team](#team)
-- [Academic Context](#academic-context)
-- [License](#license)
-
----
-
-## Highlights
-
-- Splits uploaded files into 1 MB chunks.
-- Stores chunk metadata in SQLite through the master service.
-- Replicates each chunk across multiple storage nodes.
-- Tracks node health with periodic heartbeats.
-- Detects failed nodes and repairs under-replicated chunks.
-- Verifies chunk integrity with SHA-256 and repairs corrupt replicas.
-- Provides a React dashboard for upload, download, node status, simulation, and logs.
+- Splits uploads into configurable chunks and stores replicas on separate nodes.
+- Records file, chunk, replica, and checksum metadata in SQLite.
+- Uses SHA-256 checksums to detect corrupt replicas during download and repair.
+- Receives node heartbeats, reports `ACTIVE`, `STALE`, and `FAILED` states, and repairs missing replicas when possible.
+- Provides an authenticated dashboard for files, cluster health, logs, and node failure simulation.
+- Runs locally with Docker Compose or as separate Java and Node.js processes.
 
 ## Architecture
 
 ```mermaid
-flowchart TB
-    Browser["Browser / API Consumer"]
-
-    subgraph Compose["Docker Compose Cluster"]
-        UI["React Dashboard<br/>Nginx :80"]
-        Master["Master Service<br/>Spring Boot :8080"]
-        Metadata[("SQLite Metadata<br/>Persistent Volume")]
-        N1["Storage Node 1<br/>:5001"]
-        N2["Storage Node 2<br/>:5002"]
-        N3["Storage Node 3<br/>:5003"]
-        N4["Storage Node 4<br/>:5004"]
-        N5["Storage Node 5<br/>:5005"]
-    end
-
-    Browser -- "Dashboard :5173" --> UI
-    Browser -- "REST API :8080" --> Master
-    UI -- "Upload / download / status / simulation" --> Master
-    Master <--> |"JPA metadata read/write"| Metadata
-    Master -- "Store / retrieve chunks; repair replicas" --> N1
-    Master -- "Store / retrieve chunks; repair replicas" --> N2
-    Master -- "Store / retrieve chunks; repair replicas" --> N3
-    Master -- "Store / retrieve chunks; repair replicas" --> N4
-    Master -- "Store / retrieve chunks; repair replicas" --> N5
-    N1 -- "Heartbeat every 5 seconds" --> Master
-    N2 -- "Heartbeat every 5 seconds" --> Master
-    N3 -- "Heartbeat every 5 seconds" --> Master
-    N4 -- "Heartbeat every 5 seconds" --> Master
-    N5 -- "Heartbeat every 5 seconds" --> Master
-    Master -- "Offline / online simulation controls" --> N1
-    Master -- "Offline / online simulation controls" --> N2
-    Master -- "Offline / online simulation controls" --> N3
-    Master -- "Offline / online simulation controls" --> N4
-    Master -- "Offline / online simulation controls" --> N5
+flowchart LR
+    Browser[Browser] --> UI[React UI / Nginx]
+    UI --> Master[Spring Boot Master :8080]
+    Master --> DB[(SQLite metadata)]
+    Master <--> N1[Storage node :5001]
+    Master <--> N2[Storage node :5002]
+    Master <--> N3[Storage node :5003]
+    Master <--> N4[Storage node :5004]
+    Master <--> N5[Storage node :5005]
+    N1 -. heartbeat .-> Master
+    N2 -. heartbeat .-> Master
+    N3 -. heartbeat .-> Master
+    N4 -. heartbeat .-> Master
+    N5 -. heartbeat .-> Master
 ```
-[![Architecture diagram of basavaraj8143/distributed-storage-system](https://gitdiagram.com/basavaraj8143/distributed-storage-system/diagram.png)](https://gitdiagram.com/basavaraj8143/distributed-storage-system?utm_source=readme&utm_medium=picture)
-## Deployment on College Private Cloud
 
-Project has also been deployed on the college's private cloud infrastructure. The college cloud is built using open-source cloud technologies, including OpenStack and related services, and provides lab resources such as virtual machines, networking, storage, and cloud management.
+The master is the metadata coordinator and a single point of failure. Storage nodes hold chunk files; the master records where replicas are stored.
 
-The college private cloud provides the underlying infrastructure, with OpenStack supplying infrastructure-level resources. ByteHarvest runs as a separate application on the resources provided by the college. Its master service and storage nodes implement the distributed storage functionality, including metadata coordination, chunk replication, health monitoring, and recovery.
-
-An access URL for the deployed application was provided through the college infrastructure.
-
-## Repository Structure
+## Repository Layout
 
 ```text
 .
-├── client-ui/          # React and Vite operator dashboard
-├── master-service/     # Spring Boot master service and SQLite metadata layer
-├── storage-node/       # Spring Boot storage node service
-├── docs/               # API, setup, CI, planning, and progress notes
-├── .github/workflows/  # GitHub Actions CI workflow
-├── metadata.db          # Local SQLite metadata database
-└── README.md
+|-- client-ui/          # React 18 and Vite dashboard
+|-- master-service/     # Spring Boot API, coordination, and SQLite metadata
+|-- storage-node/       # Spring Boot chunk storage service
+|-- deploy/             # Production reverse-proxy configuration
+|-- docs/               # API, CI, deployment, and project documentation
+|-- compose.yaml        # Local Docker Compose cluster
+|-- compose.prod.yaml   # Single-server production-style Compose setup
+`-- README.md
 ```
 
-## Tech Stack
+## Technology
 
-| Area | Technology |
+| Component | Technology |
 | --- | --- |
-| Master service | Java 17, Spring Boot, Spring Web, Spring Data JPA |
-| Storage nodes | Java 17, Spring Boot Web MVC |
-| Metadata database | SQLite |
-| Frontend | React 18, Vite |
-| Testing | JUnit, Spring Boot Test, Mockito |
+| Master and storage nodes | Java 17, Spring Boot, Maven |
+| Metadata | SQLite, Spring Data JPA |
+| Dashboard | React 18, React Router, Vite |
+| Container setup | Docker Compose, Nginx |
 | CI | GitHub Actions |
 
-## Services and Ports
+## Run Locally with Docker Compose
 
-| Service | Default URL | Purpose |
-| --- | --- | --- |
-| Frontend | `http://localhost:5173` | Browser dashboard |
-| Master service | `http://localhost:8080` | Upload/download API, metadata, monitoring |
-| Storage node 1 | `http://localhost:5001` | Chunk storage |
-| Storage node 2 | `http://localhost:5002` | Chunk storage |
-| Storage node 3 | `http://localhost:5003` | Chunk storage |
-| Storage node 4 | `http://localhost:5004` | Chunk storage |
-| Storage node 5 | `http://localhost:5005` | Chunk storage |
+Prerequisites: Docker with the Compose plugin.
 
-The master is configured to use storage nodes on ports `5001` through `5005` in [application.properties](master-service/src/main/resources/application.properties).
+1. From the repository root, copy `.env.example` to `.env`.
+2. Set a non-empty `APP_PASSWORD` and a `NODE_TOKEN` of at least 16 characters in `.env`. The node token is shared by the master and all storage nodes. Keep `.env` private; it is not committed.
+3. Start the cluster:
 
-## Quick Start
+   ```bash
+   docker compose up --build
+   ```
 
-### Run the Full Cluster with Docker Compose
+4. Open the dashboard at [http://localhost:5173](http://localhost:5173) and sign in with `APP_USERNAME` and `APP_PASSWORD` from `.env` (the default username is `admin`). The master API is at [http://localhost:8080](http://localhost:8080).
 
-Prerequisite: Docker Desktop with Docker Compose.
+Compose starts the master, dashboard, and five storage nodes. Metadata and node chunk data use named volumes and persist across container restarts. Stop with `Ctrl+C`, then run `docker compose down`. `docker compose down -v` also deletes the persisted volumes.
 
-From the repository root, run:
+## Run Services without Docker
 
-```bash
-docker compose up --build
-```
+Prerequisites: Java 17, Maven, Node.js 20, and npm. The master and each storage node require a password and shared node token; provide them as environment variables before starting. The master accepts `APP_USERNAME` (default `admin`), `APP_PASSWORD`, `NODE_TOKEN`, and optionally `STORAGE_NODES`. Each node needs the same `NODE_TOKEN`; configure its port and heartbeat URL as needed.
 
-Open the dashboard at `http://localhost:5173`. The master API is available at `http://localhost:8080`. Compose stores SQLite metadata and each storage node's chunks in separate named volumes, so data survives container restarts and recreation.
+Start the master from the repository root:
 
-Stop the services with `Ctrl+C`, then run `docker compose down`. Avoid `docker compose down -v` unless you intend to permanently delete the metadata and chunk volumes.
-
-### Run Services Directly
-
-### Prerequisites
-
-- Java 17 or newer
-- Maven 3.9 or newer
-- Node.js 20 or newer
-- npm
-
-### 1. Start the Master Service
-
-```bash
+```powershell
+$env:APP_PASSWORD = "your-local-password"
+$env:NODE_TOKEN = "replace-with-a-random-token-at-least-16-chars"
 cd master-service
 mvn spring-boot:run
 ```
 
-The master starts on `http://localhost:8080`.
+Start each storage node in its own terminal, from the repository root. Repeat for ports 5001 through 5005; set the master URL and node URL for the selected port if they differ from these defaults:
 
-### 2. Start Storage Nodes
-
-Open three separate terminals:
-
-```bash
+```powershell
+$env:NODE_TOKEN = "replace-with-a-random-token-at-least-16-chars"
+$env:SERVER_PORT = "5001"
+$env:STORAGE_NODE_URL = "http://localhost:5001"
+$env:HEARTBEAT_MASTER_URL = "http://localhost:8080/heartbeat"
 cd storage-node
-mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=5001"
+mvn spring-boot:run
 ```
 
-```bash
-cd storage-node
-mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=5002"
-```
-
-```bash
-cd storage-node
-mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=5003"
-```
-
-```bash
-cd storage-node
-mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=5004"
-```
-
-```bash
-cd storage-node
-mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=5005"
-```
-
-Each node stores chunks in a local folder named after its port, such as `storage_5001/` through `storage_5005/`.
-
-### 3. Start the Frontend
+Run the dashboard in another terminal:
 
 ```bash
 cd client-ui
-npm install
+npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser.
+The development dashboard uses `http://localhost:8080` as its API base by default. Start the master and storage nodes before uploading files.
 
-> **Tip:** start the master first, then the three storage nodes, then the frontend — nodes register with the master via heartbeat on boot.
+## Production-style Compose
 
-## Core Workflow
-
-1. Upload a file from the UI or `POST /upload`.
-2. The master splits the file into 1 MB chunks.
-3. Each chunk is replicated to storage nodes.
-4. The master saves file, chunk, replica, and checksum metadata in SQLite.
-5. Download by `fileId` reconstructs the original file in chunk order.
-6. If a replica is corrupt or unreachable, the master tries another replica and repairs metadata or data where possible.
-
-## API Overview
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `POST` | `/upload` | Uploads a file and returns a `fileId` |
-| `GET` | `/download/{fileId}` | Downloads the reconstructed original file |
-| `POST` | `/heartbeat` | Receives heartbeat messages from storage nodes |
-| `GET` | `/nodes/status` | Returns active, failed, or unknown node status |
-| `GET` | `/system/health` | Returns cluster health summary |
-| `GET` | `/logs` | Returns recent in-memory system events |
-| `POST` | `/api/simulation/nodes/{nodeId}/offline` | Simulates a node failure |
-| `POST` | `/api/simulation/nodes/{nodeId}/online` | Brings a simulated node back online |
-
-Full endpoint details are available in [docs/api/endpoints.md](docs/api/endpoints.md).
-
-## Example cURL Commands
-
-Upload a file:
+`compose.prod.yaml` serves the dashboard through Nginx on port 80 and keeps the master and storage nodes on the internal Docker network. Configure the root `.env` as above, then create `deploy/.htpasswd` with the same username and password used for `APP_USERNAME` and `APP_PASSWORD`. See [docs/deployment/oracle-cloud.md](docs/deployment/oracle-cloud.md) for server setup details.
 
 ```bash
-curl -X POST "http://localhost:8080/upload" \
-  -F "file=@sample.pdf"
-```
-
-Download a file:
-
-```bash
-curl -L "http://localhost:8080/download/<fileId>" -o downloaded-file.pdf
-```
-
-Check cluster health:
-
-```bash
-curl "http://localhost:8080/system/health"
+docker compose -f compose.prod.yaml up -d --build
 ```
 
 ## Configuration
 
-### Master Service
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `APP_USERNAME` | `admin` | HTTP Basic username for dashboard and master API |
+| `APP_PASSWORD` | Required | HTTP Basic password; the master does not start without it |
+| `NODE_TOKEN` | Required | Shared token for master-to-node and node-to-master requests; minimum 16 characters |
+| `STORAGE_NODES` | `http://localhost:5001` through `:5005` | Comma-separated storage node URLs |
+| `STORAGE_REPLICATION_FACTOR` | `2` | Number of copies to maintain; cannot exceed available nodes |
+| `STORAGE_CHUNK_SIZE_BYTES` | `1048576` | Chunk size for new files (1 MiB; minimum 1024 bytes) |
+| `SPRING_DATASOURCE_URL` | `jdbc:sqlite:metadata.db` | Master SQLite connection string |
+| `HEARTBEAT_STALE_TIMEOUT_MS` | `15000` | Time since heartbeat before a node is stale |
+| `HEARTBEAT_DEAD_TIMEOUT_MS` | `60000` | Time since heartbeat before a node is failed; must exceed stale timeout |
+| `HEARTBEAT_MASTER_URL` | `http://localhost:8080/heartbeat` | Master heartbeat endpoint configured on storage nodes |
+| `STORAGE_BASE_DIR` | Current working directory | Base directory for node chunk folders |
+| `VITE_API_BASE_URL` | `http://localhost:8080` | Dashboard API URL; set at frontend build time |
 
-Main configuration file: [master-service/src/main/resources/application.properties](master-service/src/main/resources/application.properties)
+Uploads are limited to 10 MB by the master’s multipart configuration. Existing files retain the chunk size they were stored with. See [`.env.example`](.env.example) for the local Compose variables; it contains placeholders, not credentials.
 
-Important values:
+## API Overview
 
-```properties
-spring.servlet.multipart.max-file-size=10MB
-spring.servlet.multipart.max-request-size=10MB
-storage.nodes=http://localhost:5001,http://localhost:5002,http://localhost:5003
-storage.replication-factor=2
-storage.chunk-size-bytes=1048576
-spring.datasource.url=jdbc:sqlite:metadata.db
-```
+All master endpoints require HTTP Basic authentication except `POST /heartbeat`, which is authenticated with the shared node token. For a direct API call, use `curl -u USERNAME:PASSWORD`. The storage node endpoints are internal cluster APIs and use the `X-Node-Token` header.
 
-### Storage Node
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/upload` | Upload multipart field `file`; returns the generated file ID |
+| `GET` | `/download/{fileId}` | Reconstruct and download a file |
+| `GET` | `/files` | List stored files |
+| `GET` | `/files/{fileId}` | Get file and chunk details |
+| `DELETE` | `/files/{fileId}` | Delete a file and its stored replicas |
+| `POST` | `/heartbeat` | Receive a node heartbeat (node token required) |
+| `GET` | `/nodes/status` | List known nodes and their health state |
+| `GET` | `/system/health` | Cluster health summary |
+| `GET` | `/logs?level=ALL&limit=100` | Recent in-memory application events |
+| `GET` | `/logs/master?lines=500` | Tail of the master log file |
+| `POST` | `/api/simulation/nodes/{nodeId}/offline` | Simulate a node going offline |
+| `POST` | `/api/simulation/nodes/{nodeId}/online` | Restore a simulated node |
 
-Main configuration file: [storage-node/src/main/resources/application.properties](storage-node/src/main/resources/application.properties)
+See [docs/api/endpoints.md](docs/api/endpoints.md) for request and response details.
 
-Important values:
-
-```properties
-heartbeat.master-url=http://localhost:8080/heartbeat
-storage.base-dir=
-```
-
-### Frontend
-
-Runtime API settings live in [client-ui/.env](client-ui/.env).
-
-```properties
-VITE_API_BASE_URL=http://localhost:8080
-VITE_USE_MOCK_API=false
-```
-
-## Testing and Build
-
-Run backend tests:
-
-```bash
-cd master-service
-mvn -B --no-transfer-progress test
-```
+Example upload and download:
 
 ```bash
-cd storage-node
-mvn -B --no-transfer-progress test
+curl -u admin:YOUR_PASSWORD -F "file=@sample.pdf" http://localhost:8080/upload
+curl -u admin:YOUR_PASSWORD -L "http://localhost:8080/download/FILE_ID" -o downloaded-file.pdf
+curl -u admin:YOUR_PASSWORD http://localhost:8080/system/health
 ```
 
-Build the frontend:
+Storage node routes include `POST /storeChunk`, `GET /getChunk/{chunkId}`, `GET /chunks`, and `DELETE /deleteChunk/{chunkId}`; requests carry the shared `X-Node-Token` header.
+
+## Build and CI
+
+Run backend tests and build the frontend:
 
 ```bash
-cd client-ui
-npm run build
+cd master-service && mvn -B --no-transfer-progress test
+cd ../storage-node && mvn -B --no-transfer-progress test
+cd ../client-ui && npm ci && npm run build
 ```
 
-Package backend applications:
+GitHub Actions runs frontend build and backend tests/package steps on pushes to `main` or `master`, and on pull requests. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) and [docs/ci-pipeline.md](docs/ci-pipeline.md).
 
-```bash
-cd master-service
-mvn -B --no-transfer-progress package -DskipTests
-```
+## Current Limitations
 
-```bash
-cd storage-node
-mvn -B --no-transfer-progress package -DskipTests
-```
+- The master is a single point of failure; master replication and leader election are not implemented.
+- Replica placement currently uses a random strategy and does not account for racks or zones.
+- Storage nodes write chunk data as local files; the system is intended for learning and demonstrations, not production workloads.
+- The master API uses HTTP Basic credentials, and node traffic uses a shared token. Configure HTTPS at the deployment boundary for remote use.
 
-## CI/CD
+## Team and Academic Context
 
-GitHub Actions runs the CI workflow in [.github/workflows/ci.yml](.github/workflows/ci.yml).
-
-The pipeline checks:
-
-- Frontend dependency installation and production build.
-- Master service tests and packaging.
-- Storage node tests and packaging.
-
-More details are documented in [docs/ci-pipeline.md](docs/ci-pipeline.md).
-
-## Implemented Concepts
-
-| Concept | Status |
-| --- | --- |
-| Metadata-data separation | ✅ Implemented |
-| Chunk-based storage | ✅ Implemented |
-| Replica placement | ✅ Implemented |
-| Heartbeat-based failure detection | ✅ Implemented |
-| Under-replication repair | ✅ Implemented |
-| SHA-256 chunk integrity checks | ✅ Implemented |
-| Corrupt replica repair | ✅ Implemented |
-| React monitoring dashboard | ✅ Implemented |
-| Docker Compose deployment | ✅ Local setup included |
-| Master replication and consensus | 🔭 Future scope |
-
-## Known Limitations
-
-- The master service is a single point of failure.
-- Replica placement is simple and does not use rack awareness.
-- The system is built for learning and demonstration, not production traffic.
-- There is no Raft, Paxos, or leader election implementation.
-- Stored chunks are plain local files under node-specific folders.
-
-## Roadmap
-
-- [x] Docker Compose setup for one-command local cluster startup.
-- [ ] Master replication / leader election for high availability.
-- [ ] Rack-aware or zone-aware replica placement.
-- [x] Configurable chunk size and replication factor (`storage.replication-factor`, `storage.chunk-size-bytes`).
-- [ ] Authentication and access control on the API.
-
-## Team
-
-**Byte-Harvest**
+**Byte-Harvest** — final-year Computer Science Engineering project at KLE Institute of Technology, 2026–27.
 
 | Member | Focus |
 | --- | --- |
@@ -375,12 +194,6 @@ More details are documented in [docs/ci-pipeline.md](docs/ci-pipeline.md).
 | Ishan Patil | Master service and fault detection |
 | Disha H | Client interface and documentation |
 
-## Academic Context
-
-This project is submitted as a final-year Computer Science Engineering project at KLE Institute of Technology for the 2026–27 academic year.
-
-The goal is to make distributed storage concepts concrete through an end-to-end implementation that can be inspected, tested, and demonstrated locally.
-
 ## License
 
-This project is licensed under the MIT License — see the `LICENSE` file for details. *(Add a `LICENSE` file at the repo root if one doesn't exist yet.)*
+The project has historically been described as MIT licensed. Add or consult the repository’s `LICENSE` file to confirm the license terms; no root `LICENSE` file is currently present.

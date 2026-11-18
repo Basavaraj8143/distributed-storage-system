@@ -1,42 +1,24 @@
 # Documentation Index
 
-This folder now contains the project documentation that was previously split across `learn/`.
+Project documentation is grouped by topic below.
 
-## Structure
+## API and Setup
 
-- `api/`
-  - `endpoints.md`: API reference for master and storage-node endpoints.
-- `setup/`
-  - `wsl-setup.md`: WSL setup and local run instructions.
-- `planning/`
-  - `basic-plan.md`: Original project plan and staged goals.
-  - `project-init-gap-analysis.md`: Early analysis of what Stage 1 had and had not completed.
-  - `frontend-parallel-plan.md`: Frontend workstream plan.
-  - `stage-3-plan.md`: Stage 3 implementation plan.
-  - `stage-4-plan.md`: Stage 4 integrity plan.
-  - `persistent-metadata-plan.md`: Plan for making master metadata durable across restarts.
-  - `postgresql-migration-plan.md`: Plan for migrating master metadata from SQLite to PostgreSQL.
-  - `docker-deployment-plan.md`: Plan for containerizing the services and running the cluster with Docker Compose.
-  - `kafka-integration-plan.md`: Optional plan for using Kafka to queue replica repair work asynchronously.
-  - `five-node-expansion-plan.md`: Plan for expanding the storage cluster from three nodes to five.
-  - `README.md`: Index for planning-specific documents.
-- `progress/`
-  - `stage-1-done.md`
-  - `stage-2-done.md`
-  - `stage-3-parts-1-3.md`
-  - `stage-3-parts-4-6.md`
-  - `stage-4-done.md`
-  - `stage-4-5-demo-readiness.md`
-  - `staged-changes-2026-04-28.md`
-- `frontend/workstreams/`
-  - `workspace-a.md`
-  - `workspace-b.md`
-  - `workspace-c.md`
-  - `workspace-d.md`
-- `ci-pipeline.md`
-  - GitHub Actions CI workflow documentation.
+- [API endpoints](api/endpoints.md): Master and storage-node routes.
+- [WSL setup guide](setup/wsl-setup.md): Running the services from WSL.
+- [Oracle Cloud deployment](deployment/oracle-cloud.md): Single-server deployment notes.
+- [CI pipeline](ci-pipeline.md): GitHub Actions build and verification workflow.
+- [Postman collection](postman/byteharvest-api.postman_collection.json) and [local environment](postman/byteharvest-local.postman_environment.json): API requests for local development.
 
-## Notes
+## Planning
 
-- The old `learn/` folder has been merged into `docs/`.
-- Filenames were normalized to make them easier to navigate and reference.
+See the [planning index](planning/README.md) for original plans and proposals. These documents describe project history or possible future work; they do not necessarily describe current implementation.
+
+## Progress and Rebuild Notes
+
+- `progress/`: Stage completion notes and dated change summaries.
+- `rebuild/`: Notes on the current service split, authentication, configuration, placement, and local run workflow.
+
+## Frontend Workstreams
+
+- `frontend/workstreams/`: Historical frontend workstream documents.

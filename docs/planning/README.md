@@ -1,11 +1,13 @@
-# Planning Docs
+# Planning Documents
 
-- [basic-plan.md](./basic-plan.md): Original project plan and milestones.
-- [frontend-parallel-plan.md](./frontend-parallel-plan.md): Frontend workstream planning.
-- [stage-3-plan.md](./stage-3-plan.md): Heartbeat and repair plan.
-- [stage-4-plan.md](./stage-4-plan.md): Integrity and checksum plan.
-- [persistent-metadata-plan.md](./persistent-metadata-plan.md): Plan for moving master metadata from in-memory storage to persistent database storage.
-- [postgresql-migration-plan.md](./postgresql-migration-plan.md): Plan for migrating master metadata from SQLite to PostgreSQL.
-- [docker-deployment-plan.md](./docker-deployment-plan.md): Plan for containerizing the services and running the cluster with Docker Compose.
-- [kafka-integration-plan.md](./kafka-integration-plan.md): Optional plan for using Kafka to queue replica repair work asynchronously.
-- [five-node-expansion-plan.md](./five-node-expansion-plan.md): Plan for expanding the storage cluster from three nodes to five.
+These documents capture the project’s original plans, analysis, and proposals. Some milestones have since been implemented or changed; consult the root [README](../../README.md), source code, and deployment files for current behavior.
+
+- [Basic plan](basic-plan.md): Original project plan and milestones.
+- [Stage 3 plan](stage-3-plan.md): Heartbeats and replica repair.
+- [Stage 4 plan](stage-4-plan.md): Integrity checks and checksums.
+- [Persistent metadata plan](persistent-metadata-plan.md): Metadata persistence proposal.
+- [PostgreSQL migration plan](postgresql-migration-plan.md): Proposed metadata database migration.
+- [Docker deployment plan](docker-deployment-plan.md): Containerization and Compose proposal.
+- [Five-node expansion plan](five-node-expansion-plan.md): Expansion from three storage nodes to five.
+- [Rack-aware placement plan](rack-aware-placement-plan.md): Proposed rack-aware replica placement.
+- [Kafka integration plan](kafka-integration-plan.md): Optional asynchronous repair queue proposal.
