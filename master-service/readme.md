@@ -1,157 +1,41 @@
-# 📦 Scalable Distributed Storage System
-### With Replication & Fault Tolerance
+# Master Service
 
-**Final Year Project – Distributed Systems**
-**Academic Year 2026–27**
-**Team: Byte-Harvest**
+The master is the Spring Boot coordinator for ByteHarvest. It exposes the authenticated file and monitoring API, stores file/chunk/replica metadata in SQLite, receives node heartbeats, and coordinates chunk placement and replica repair.
 
----
+## Requirements
 
-## 📌 Project Overview
+- Java 17
+- Maven 3.9 or newer
+- A reachable set of storage nodes
+- `APP_PASSWORD` and a shared `NODE_TOKEN` of at least 16 characters
 
-This project implements a simplified distributed storage system inspired by modern architectures such as Google File System (GFS) and Hadoop Distributed File System (HDFS). The system demonstrates:
+## Run locally
 
-- Chunk-based file storage
-- Metadata coordination using a centralized Master
-- Configurable replication factor
-- Heartbeat-based failure detection
-- Automatic re-replication (self-healing)
-- Docker-based distributed simulation
+From the repository root, set the credentials and start the application:
 
-The objective is to understand the architectural principles behind scalable and fault-tolerant storage systems.
-
----
-
-## 🏗 Architecture Overview
-
-The system consists of three main components:
-
-### 1️⃣ Master Service
-
-- Manages metadata (file → chunk → node mapping)
-- Tracks replication factor
-- Monitors node health via heartbeat
-- Detects node failures
-- Triggers automatic re-replication
-
-### 2️⃣ Storage Nodes
-
-- Store file chunks
-- Compute SHA-256 checksum for integrity
-- Send periodic heartbeat signals
-- Respond to store/retrieve/delete requests
-
-### 3️⃣ Client Interface
-
-- Upload files
-- Download files
-- View system status
-- Trigger failure simulation (for testing)
-
----
-
-## 🔁 Core Features
-
-- File splitting into fixed-size chunks
-- Replication across multiple nodes
-- Automatic failure detection via timeout
-- Under-replication recovery mechanism
-- Data integrity verification using SHA-256
-- Docker-based container deployment
-
----
-
-## 🧠 Key Concepts Implemented
-
-- Distributed Architecture
-- Metadata–Data Separation
-- Replication Strategy
-- Fault Detection
-- Self-Healing Systems
-- Consistent Hashing *(Planned / Advanced Feature)*
-- CAP Theorem Trade-offs
-
----
-
-## 🗂 Project Structure
-
-```
-distributed-storage-system/
-│
-├── master-service/
-├── storage-node/
-├── client-ui/
-├── docker/
-├── docs/
-└── README.md
+```powershell
+$env:APP_PASSWORD = "your-local-password"
+$env:NODE_TOKEN = "replace-with-a-random-token-at-least-16-chars"
+cd master-service
+mvn spring-boot:run
 ```
 
----
+The API listens on port `8080`. The default node addresses are `localhost:5001` through `localhost:5005`. Configure `STORAGE_NODES` to use another comma-separated list. The UI and API use HTTP Basic authentication with `APP_USERNAME` (default `admin`) and `APP_PASSWORD`; storage node requests use `NODE_TOKEN`.
 
-## 🐳 Deployment
+## Configuration
 
-The system is designed to run using Docker containers:
+Main defaults and environment-variable mappings are in [`src/main/resources/application.properties`](src/main/resources/application.properties). Important variables:
 
-- 1 Master container
-- Multiple Storage Node containers
-- Shared Docker network
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `APP_USERNAME` | `admin` | User-facing API username |
+| `APP_PASSWORD` | Required | User-facing API password |
+| `NODE_TOKEN` | Required | Shared token for storage-node communication |
+| `STORAGE_NODES` | Ports 5001–5005 | Comma-separated node URLs |
+| `STORAGE_REPLICATION_FACTOR` | `2` | Desired replicas per chunk |
+| `STORAGE_CHUNK_SIZE_BYTES` | `1048576` | Chunk size for new uploads |
+| `SPRING_DATASOURCE_URL` | `jdbc:sqlite:metadata.db` | SQLite connection URL |
 
-Failure simulation can be performed by stopping a node container.
+The master accepts uploads up to 10 MB by default. Local SQLite databases are runtime data and are ignored by Git. Docker Compose persists container metadata in a named volume.
 
----
-
-## ⚙️ Technology Stack
-
-| Component | Technology |
-|-----------|-----------|
-| Backend | Java (Spring Boot) |
-| Metadata DB | SQLite |
-| Frontend | React *(optional)* |
-| Containerization | Docker & Docker Compose |
-| Data Integrity | SHA-256 |
-
----
-
-## 📈 Development Phases
-
-| Phase | Description |
-|-------|-------------|
-| V1 | Chunk-based storage |
-| V2 | Replication mechanism |
-| V3 | Fault detection & recovery |
-| V4 | Dockerized distributed simulation |
-| V5 | Consistent hashing *(advanced enhancement)* |
-
----
-
-## ⚠️ Current Limitations
-
-- Single Master (potential bottleneck)
-- Not production-scale
-- No leader election or consensus protocol
-- No rack-aware replica placement
-
----
-
-## 🚀 Future Enhancements
-
-- Master replication using Raft
-- Erasure coding instead of replication
-- Performance benchmarking
-- Rack-aware placement strategy
-- Monitoring dashboard
-
----
-
-## 👥 Team Members
-
-- Basavaraj N
-- Akash M K
-- Ishan Patil
-- Disha H
-
----
-
-## 📚 Academic Relevance
-
-This project demonstrates practical implementation of distributed storage concepts aligned with real-world systems such as GFS and HDFS, focusing on architectural understanding rather than commercial deployment.
+For the full system overview and API reference, see the [root README](../README.md) and [API documentation](../docs/api/endpoints.md).

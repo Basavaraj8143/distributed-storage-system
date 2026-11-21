@@ -1,181 +1,79 @@
-# 🐧 WSL Ubuntu Setup & Run Guide (Java Project)
+# Run ByteHarvest from WSL
 
----
+This guide runs the Java services directly from WSL. For the Docker setup, use the [root README](../../README.md).
 
-## ⚙️ 1. Install WSL + Ubuntu
+## Requirements
 
-Open PowerShell (Admin):
+- WSL 2 with Ubuntu
+- Java 17 and Maven 3.9 or newer
+- Node.js 24 and npm (for the dashboard)
 
-```bash
-wsl --install
-```
-
-Restart system.
-
-After restart:
-
-* Ubuntu will open
-* Set username + password
-
----
-
-## 🔧 2. Install Required Tools
-
-Inside Ubuntu:
+Install Java and Maven in Ubuntu:
 
 ```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install openjdk-17-jdk maven git net-tools -y
+sudo apt update
+sudo apt install openjdk-17-jdk maven
 ```
 
----
+Install a supported Node.js LTS release and npm using your preferred Node version manager, then confirm `java -version`, `mvn -version`, `node --version`, and `npm --version`.
 
-## ✅ 3. Verify Installation
+## Find the repository
 
-```bash
-java -version
-mvn -version
-uname -a
-```
-
----
-
-## 📁 4. Access Windows Files from WSL
-
-Windows path:
-
-```bash
-D:\projects\final
-```
-
-WSL path:
-
-```bash
-/mnt/d/projects/final
-```
-
-Go to project:
+Windows drives appear under `/mnt` in WSL. For example:
 
 ```bash
 cd /mnt/d/projects/final
-ls
 ```
 
----
+## Build the backend services
 
-## 🔨 5. Build Project
-
-Go inside service folder:
+From the repository root:
 
 ```bash
 cd master-service
-mvn clean package
-```
-
-For other services:
-
-```bash
+mvn -B package
 cd ../storage-node
-mvn clean package
+mvn -B package
+cd ..
 ```
 
----
+## Start the master
 
-## ▶️ 6. Run JAR Files
-
-### Run Master
+In one terminal, from the repository root, provide a local password and a random node token. Use the same node token in every storage-node terminal. Keep these values private.
 
 ```bash
+export APP_USERNAME=admin
+export APP_PASSWORD='choose-a-local-password'
+export NODE_TOKEN='replace-with-a-random-token-at-least-16-characters'
 cd /mnt/d/projects/final/master-service
-java -jar target/*.jar
+mvn spring-boot:run
 ```
 
----
+The master listens on port `8080` and uses the default storage-node URLs `localhost:5001` through `localhost:5005`.
 
-### Run Storage Nodes (multiple)
+## Start storage nodes
+
+Open a separate terminal for each node. Repeat with `SERVER_PORT` set to `5001`, `5002`, `5003`, `5004`, and `5005`:
 
 ```bash
+export NODE_TOKEN='replace-with-a-random-token-at-least-16-characters'
+export SERVER_PORT=5001
+export HEARTBEAT_MASTER_URL=http://localhost:8080/heartbeat
+export STORAGE_BASE_DIR=/mnt/d/projects/final
 cd /mnt/d/projects/final/storage-node
-
-java -jar target/*.jar --server.port=5001 --storage.base-dir=/mnt/d/projects/final
-
-java -jar target/*.jar --server.port=5002 --storage.base-dir=/mnt/d/projects/final
-
-java -jar target/*.jar --server.port=5003 --storage.base-dir=/mnt/d/projects/final
-
-java -jar target/*.jar --server.port=5004 --storage.base-dir=/mnt/d/projects/final
-
-java -jar target/*.jar --server.port=5005 --storage.base-dir=/mnt/d/projects/final
+mvn spring-boot:run
 ```
 
----
+Each node writes its chunks under a port-specific directory such as `storage_5001/` in the configured base directory.
 
-## ⚙️ 7. Configuration (application.properties)
+## Start the dashboard
 
-Keep only common config:
-
-```properties
-spring.application.name=storage-node
-heartbeat.master-url=http://localhost:8080/heartbeat
-```
-
----
-
-### ❗ Do NOT hardcode
-
-Remove:
-
-```properties
-server.port=5001
-storage.base-dir=...
-```
-
-👉 Pass them via command line instead.
-
----
-
-## 🔁 8. Rebuild After Changes
-
-Every code/config change requires rebuild:
+In another terminal:
 
 ```bash
-mvn clean package
+cd /mnt/d/projects/final/client-ui
+npm ci
+npm run dev
 ```
 
----
-
-## ⚠️ 9. Important Rules
-
-* Always run using:
-
-  ```bash
-  java -jar
-  ```
-* Do not use Windows paths (`D:\...`)
-* Use WSL paths (`/mnt/d/...`)
-* Each node must use:
-
-    * different port
-    * same project base directory, or empty `storage.base-dir`
-
-The storage-node service automatically creates separate folders named
-`storage_5001` through `storage_5005` from the port.
-
----
-
-## 🧪 10. Testing
-
-* Run master + nodes
-* Check logs for activity
-* Stop a node → verify behavior
-
----
-
-## 🎯 Final Workflow
-
-1. Write code in IntelliJ (Windows)
-2. Build using Maven
-3. Run in WSL (Linux)
-4. Test multiple instances
-
----
+Open `http://localhost:5173` and sign in with the master username and password. The dashboard uses `http://localhost:8080` for its API by default. Copy `client-ui/.env.example` to `client-ui/.env` only if you need to override local frontend settings.

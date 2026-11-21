@@ -7,8 +7,14 @@ build/
 *.war
 *.ear
 
-# Secrets (only the root .env; client-ui/.env holds non-secret settings)
+# Secrets and machine-local environment configuration
+/.env
 /storage-node/.env
+/client-ui/.env
+
+# Local SQLite databases
+/metadata.db
+/master-service/metadata.db
 
 # Logs
 logs/
