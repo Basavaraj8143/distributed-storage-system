@@ -24,6 +24,7 @@ It is a learning project. It is small enough to read in a weekend and real enoug
 - **Failure detection.** Nodes send heartbeats. The master tracks them as `ACTIVE`, `STALE` and `FAILED`.
 - **Self-healing.** When a node fails, a repair cycle re-replicates its chunks. When a node rejoins, the master reconciles what it holds against the metadata.
 - **Secured.** HTTP Basic login for users, plus a shared token between the master and the nodes. Both services refuse to start without their secrets.
+- **Interactive API docs.** Swagger UI on the master (`/swagger-ui.html`) to browse and try every endpoint.
 - **Operator dashboard.** Live file list with replica health, upload progress, node status, logs, and a **Chaos Simulator** that takes nodes offline so you can watch the cluster react.
 - **Runs anywhere.** One `docker compose up`, or the services as separate processes in your IDE.
 
@@ -216,6 +217,10 @@ curl -u admin:YOUR_PASSWORD http://localhost:8080/system/health
 
 Full details are in [docs/api/endpoints.md](docs/api/endpoints.md), and a ready-made [Postman collection](docs/postman/byteharvest-api.postman_collection.json) is included. (On Windows PowerShell, use `curl.exe`.)
 
+### Swagger UI
+
+With the master running, open **http://localhost:8080/swagger-ui.html** to browse and try the API. The raw OpenAPI spec is at `/v3/api-docs`. Click **Authorize** and enter `APP_USERNAME` and `APP_PASSWORD` so "Try it out" can call the protected endpoints; `POST /heartbeat` asks for the node token instead. The documentation pages are public, the API calls are not. On a public deployment, switch the docs off with `SPRINGDOC_API_DOCS_ENABLED=false` and `SPRINGDOC_SWAGGER_UI_ENABLED=false`.
+
 ## Project layout
 
 ```text
@@ -232,7 +237,7 @@ Full details are in [docs/api/endpoints.md](docs/api/endpoints.md), and a ready-
 
 | Component | Technology |
 | --- | --- |
-| Master and nodes | Java 17, Spring Boot 3.5, Spring Security (master), Maven |
+| Master and nodes | Java 17, Spring Boot 3.5, Spring Security (master), springdoc-openapi (master), Maven |
 | Metadata | SQLite with Spring Data JPA |
 | Dashboard | React 18, React Router, Vite |
 | Packaging | Docker Compose, Nginx |

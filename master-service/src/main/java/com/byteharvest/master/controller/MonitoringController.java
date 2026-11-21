@@ -1,6 +1,8 @@
 package com.byteharvest.master.controller;
 
 import com.byteharvest.master.service.HeartbeatService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -11,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 
 @RestController
+@Tag(name = "Monitoring", description = "Node and cluster health")
 public class MonitoringController {
 
     private final HeartbeatService heartbeatService;
@@ -19,6 +22,8 @@ public class MonitoringController {
         this.heartbeatService = heartbeatService;
     }
 
+    @Operation(summary = "Node status",
+            description = "Every known node with its last heartbeat (epoch ms) and status: ACTIVE, STALE, FAILED or UNKNOWN.")
     @GetMapping("/nodes/status")
     public List<Map<String, Object>> getNodeStatus() {
         List<Map<String, Object>> response = new ArrayList<>();
@@ -47,6 +52,8 @@ public class MonitoringController {
         return response;
     }
 
+    @Operation(summary = "System health",
+            description = "HEALTHY, DEGRADED (a node is STALE or FAILED) or UNKNOWN (no heartbeat yet), with node counts and ids.")
     @GetMapping("/system/health")
     public Map<String, Object> getSystemHealth() {
         int activeNodes = heartbeatService.getActiveNodes().size();

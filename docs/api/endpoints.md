@@ -9,6 +9,21 @@ All examples use `curl`. In Windows PowerShell, use `curl.exe` instead, because 
 
 ---
 
+## Interactive docs (Swagger UI)
+
+The master serves its own interactive documentation, generated from the controllers by springdoc-openapi:
+
+| URL | What |
+| --- | --- |
+| `http://localhost:8080/swagger-ui.html` | Swagger UI: browse and try every master endpoint |
+| `http://localhost:8080/v3/api-docs` | The raw OpenAPI spec (JSON), for Postman or code generators |
+
+The pages are public, but the calls made from them are not. Click **Authorize**, enter `APP_USERNAME` and `APP_PASSWORD` (the `basicAuth` scheme), and "Try it out" works. `POST /heartbeat` uses the separate `nodeToken` scheme (the `X-Node-Token` value).
+
+The spec lists every endpoint, so turn it off on a public deployment by setting `SPRINGDOC_API_DOCS_ENABLED=false` and `SPRINGDOC_SWAGGER_UI_ENABLED=false` in the master's environment. Only the master has Swagger; the storage node endpoints are internal and are listed in section 2 below.
+
+---
+
 ## Authentication
 
 | Who calls | Which endpoints | How |

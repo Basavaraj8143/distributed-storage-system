@@ -1,6 +1,9 @@
 package com.byteharvest.master.controller;
 
 import com.byteharvest.master.service.HeartbeatService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -10,6 +13,7 @@ import org.springframework.web.client.RestTemplate;
 
 @RestController
 @RequestMapping("/api/simulation")
+@Tag(name = "Simulation", description = "Chaos tools: take a node offline and bring it back")
 public class SimulationController {
 
     private final HeartbeatService heartbeatService;
@@ -20,6 +24,10 @@ public class SimulationController {
         this.restTemplate = restTemplate;
     }
 
+    @Operation(summary = "Simulate a node going offline",
+            description = "Asks the node to stop heartbeats and refuse chunk requests. No data is lost.")
+    @ApiResponse(responseCode = "404", description = "Node never sent a heartbeat")
+    @ApiResponse(responseCode = "500", description = "Could not reach the node")
     @PostMapping("/nodes/{nodeId}/offline")
     public ResponseEntity<String> simulateOffline(@PathVariable String nodeId) {
         String nodeUrl = heartbeatService.getNodeUrl(nodeId);
@@ -35,6 +43,9 @@ public class SimulationController {
         }
     }
 
+    @Operation(summary = "Bring a simulated-offline node back")
+    @ApiResponse(responseCode = "404", description = "Node never sent a heartbeat")
+    @ApiResponse(responseCode = "500", description = "Could not reach the node")
     @PostMapping("/nodes/{nodeId}/online")
     public ResponseEntity<String> simulateOnline(@PathVariable String nodeId) {
         String nodeUrl = heartbeatService.getNodeUrl(nodeId);

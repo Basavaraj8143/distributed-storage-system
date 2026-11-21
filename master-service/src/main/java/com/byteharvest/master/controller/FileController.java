@@ -6,6 +6,10 @@ import com.byteharvest.master.model.FileSummary;
 import com.byteharvest.master.service.DownloadService;
 import com.byteharvest.master.service.FileManagementService;
 import com.byteharvest.master.service.UploadService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.MediaTypeFactory;
@@ -19,6 +23,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 @RestController
+@Tag(name = "Files", description = "Upload, download, list and delete files")
 public class FileController {
 
     // File ids are generated with UUID.randomUUID(), so anything else is a bad request.
@@ -39,6 +44,12 @@ public class FileController {
         this.fileManagementService = fileManagementService;
     }
 
+    @Operation(summary = "Upload a file",
+            description = "Splits the file into chunks and stores each chunk on several ACTIVE nodes. Returns the new fileId.")
+    @ApiResponse(responseCode = "200", description = "File stored; body is the fileId (UUID)")
+    @ApiResponse(responseCode = "400", description = "Empty file, missing file part or filename too long")
+    @ApiResponse(responseCode = "413", description = "File larger than 10 MB")
+    @ApiResponse(responseCode = "503", description = "Not enough ACTIVE nodes to store the replicas")
     @PostMapping("/upload")
     public ResponseEntity<String> upload(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
@@ -50,8 +61,16 @@ public class FileController {
         return ResponseEntity.ok(fileId);
     }
 
+    @Operation(summary = "Download a file",
+            description = "Reassembles the file from its chunks, verifying each checksum and falling back to other replicas.")
+    @ApiResponse(responseCode = "200", description = "The file bytes")
+    @ApiResponse(responseCode = "400", description = "fileId is not a valid UUID")
+    @ApiResponse(responseCode = "404", description = "Unknown fileId")
+    @ApiResponse(responseCode = "503", description = "A chunk has no valid replica right now")
     @GetMapping("/download/{fileId}")
-    public ResponseEntity<byte[]> download(@PathVariable String fileId) {
+    public ResponseEntity<byte[]> download(
+            @Parameter(description = "Id returned by upload", example = "123e4567-e89b-12d3-a456-426614174000")
+            @PathVariable String fileId) {
         requireValidFileId(fileId);
 
         byte[] data = downloadService.download(fileId);
@@ -64,19 +83,33 @@ public class FileController {
                 .body(data);
     }
 
+    @Operation(summary = "List files",
+            description = "Every file with its chunk count and its lowest replica count (below targetReplicas means under-replicated).")
     @GetMapping("/files")
     public List<FileSummary> listFiles() {
         return fileManagementService.listFiles();
     }
 
+    @Operation(summary = "File details", description = "Chunks of one file with checksums and the nodes holding each replica.")
+    @ApiResponse(responseCode = "400", description = "fileId is not a valid UUID")
+    @ApiResponse(responseCode = "404", description = "Unknown fileId")
     @GetMapping("/files/{fileId}")
-    public FileDetails getFile(@PathVariable String fileId) {
+    public FileDetails getFile(
+            @Parameter(description = "Id returned by upload", example = "123e4567-e89b-12d3-a456-426614174000")
+            @PathVariable String fileId) {
         requireValidFileId(fileId);
         return fileManagementService.getFileDetails(fileId);
     }
 
+    @Operation(summary = "Delete a file",
+            description = "Removes the metadata first, then asks the nodes to delete the chunks (best effort).")
+    @ApiResponse(responseCode = "204", description = "Deleted")
+    @ApiResponse(responseCode = "400", description = "fileId is not a valid UUID")
+    @ApiResponse(responseCode = "404", description = "Unknown fileId")
     @DeleteMapping("/files/{fileId}")
-    public ResponseEntity<Void> deleteFile(@PathVariable String fileId) {
+    public ResponseEntity<Void> deleteFile(
+            @Parameter(description = "Id returned by upload", example = "123e4567-e89b-12d3-a456-426614174000")
+            @PathVariable String fileId) {
         requireValidFileId(fileId);
         fileManagementService.deleteFile(fileId);
         return ResponseEntity.noContent().build();
