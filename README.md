@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌾 ByteHarvest
+#  ByteHarvest
 
 **A distributed chunk-storage system built from scratch: files are split, checksummed, replicated across nodes, and automatically repaired when a node dies.**
 
@@ -274,7 +274,7 @@ Server setup notes (Oracle Cloud Always Free) are in [docs/deployment/oracle-clo
 Planned, in rough priority order:
 
 - [ ] TLS between the master and the nodes, so the token and data are encrypted in transit
-- [ ] Atomic uploads: a file status (`UPLOADING` / `COMPLETE`) and cleanup of failed uploads
+- [ ] Clean up orphan chunks left by failed uploads and by deletes while a node is down
 - [ ] Validate the heartbeat's `nodeUrl` against the configured storage nodes
 - [ ] Capacity-aware placement: report disk space in the heartbeat
 - [ ] Rate-limit failed logins and log failed authentication attempts
@@ -284,7 +284,7 @@ Planned, in rough priority order:
 
 - The master is a single point of failure. Master replication and leader election are not implemented.
 - Placement is random. It does not consider free space, racks or zones yet.
-- Uploads are not atomic yet: a failure halfway can leave orphan chunks on nodes.
+- A failed upload, or a delete while a node is down, can leave orphan chunks on a node. The file list is never affected, because metadata is saved in one transaction.
 - Lowering the replication factor does not remove copies that already exist.
 - Chunks and metadata are not encrypted at rest, and there is no TLS unless you add it at the deployment boundary.
 - Intended for learning and demonstrations, not production workloads.
@@ -292,6 +292,7 @@ Planned, in rough priority order:
 ## More documentation
 
 - [Documentation index](docs/README.md)
+- [Key flows explained](docs/rebuild/flows.md): upload, download, heartbeat, repair, reconcile, delete, authentication, chaos simulation
 - Rebuild notes: [running locally](docs/rebuild/running-locally.md), [service split](docs/rebuild/service-split.md), [placement strategy](docs/rebuild/placement-strategy.md), [configurable replication](docs/rebuild/configurable-replication.md), [repair cycle](docs/rebuild/Repair-cycle.md), [authentication phase 1](docs/rebuild/authentication-phase1.md) and [phase 2](docs/rebuild/authentication-phase2.md)
 
 ## Team

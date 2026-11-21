@@ -78,18 +78,29 @@ Get the project onto the VM, either way:
 
 The `deploy/` folder and `compose.prod.yaml` must be present.
 
-## 5. Set the password and start
+## 5. Set the secrets and start
+
+Three values are needed, and the cluster will not start without them:
+
+- `APP_PASSWORD`: the login for the dashboard and API (`APP_USERNAME` defaults to `admin`)
+- `NODE_TOKEN`: the secret shared by the master and the five nodes (at least 16 characters)
+- the nginx password file `deploy/.htpasswd`, which must hold the **same** user and password as `APP_USERNAME` and `APP_PASSWORD`
 
 From the project folder on the VM:
 
 ```bash
-# creates deploy/.htpasswd with one user; replace the name and the password
-printf 'admin:%s\n' "$(openssl passwd -apr1 'choose-a-strong-password')" > deploy/.htpasswd
+# 1. the app secrets: docker compose reads .env automatically
+cp .env.example .env
+nano .env        # set APP_PASSWORD, and NODE_TOKEN (generate one with: openssl rand -hex 32)
 
+# 2. the nginx password file: same user and password as in .env
+printf 'admin:%s\n' "$(openssl passwd -apr1 'the-same-password-as-APP_PASSWORD')" > deploy/.htpasswd
+
+# 3. start
 docker compose -f compose.prod.yaml up -d --build
 ```
 
-Create `deploy/.htpasswd` before the first start. If the file is missing, Docker creates a folder with that name and nginx will fail to start.
+If `APP_PASSWORD` or `NODE_TOKEN` is missing, compose stops at once and names the missing value. Create `deploy/.htpasswd` before the first start: if the file is missing, Docker creates a folder with that name and nginx will fail to start. `.env` is not committed to git; keep it on the server only.
 
 The first build downloads Maven and npm dependencies and compiles six images on two ARM cores, so expect it to take several minutes.
 
@@ -100,7 +111,7 @@ docker compose -f compose.prod.yaml ps      # all services "running"
 docker stats --no-stream                    # memory use against the limits
 ```
 
-- From your own computer, open `http://<the VM's public IP>`. Your browser asks for the user name and password.
+- From your own computer, open `http://<the VM's public IP>`. Your browser asks for the user name and password (nginx), then the dashboard shows its own sign-in page. Use the same credentials for both.
 - If the page never loads, the cause is almost always section 3: check the Oracle rule (your current IP, port 80) and the iptables rule.
 - On **Node Status**, all five nodes should show ACTIVE after about 10 to 15 seconds. Upload a file and look at it on **Files**.
 
@@ -121,5 +132,7 @@ Containers use `restart: unless-stopped`, and Docker starts on boot, so the clus
 - **HTTP only.** Basic auth over plain HTTP sends the password unencrypted. The firewall rule limiting port 80 to your IP is the real protection. For a public demo link, add HTTPS with a free domain name and a reverse proxy that gets certificates automatically (Caddy is a common choice). That is not set up here.
 - **Idle reclaim.** Oracle may reclaim an Always Free ARM instance if, over 7 days, CPU, network and memory use all stay below 20%. Your cluster idles at modest memory use, so use the VM, and keep an eye on `docker stats`, before you rely on it for a deadline.
 - **Data lives in Docker volumes** on the VM. There are no backups. Recreating the VM loses the stored files and metadata.
-- **No authentication in the app itself.** nginx's password and the IP rule are the only protection. Do not open port 80 to the whole internet until the master has real authentication.
+- **Layers of protection.** The firewall rule limits who can reach port 80, nginx asks for a password, and the master requires its own login. The master and the nodes are on the internal Docker network only, and they authenticate each other with `NODE_TOKEN`. There is still only one shared login, not user accounts, so keep the IP rule in place before sharing the address more widely.
+- **Two sign-ins, one credential.** nginx and the master both read the same `Authorization` header, which is why `deploy/.htpasswd` must match `APP_USERNAME` and `APP_PASSWORD`. If they differ, every request fails at nginx.
+- **Secrets are in `.env` on the server** and in the containers' environment (visible to anyone with Docker access on the VM). Rotating `NODE_TOKEN` needs the master and all nodes restarted together.
 - **The Chaos Simulator** works through the same `/api` proxy, behind the same password.

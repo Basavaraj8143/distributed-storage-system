@@ -48,6 +48,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // No user login here: nodes prove themselves with the node token (NodeTokenFilter).
                         .requestMatchers(HttpMethod.POST, "/heartbeat").permitAll()
+                        // API documentation page only. The calls made from it still need the login.
+                        .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())
                 // The usual Basic challenge header makes browsers open their own login dialog.
                 // The UI has its own login form, so this answers 401 without that header.

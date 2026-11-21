@@ -16,6 +16,8 @@ See the [planning index](planning/README.md) for original plans and proposals. T
 
 ## Progress and Rebuild Notes
 
+- [Key flows](rebuild/flows.md): upload, download, heartbeat, repair, reconcile, delete, authentication and chaos simulation, step by step.
+
 - `progress/`: Stage completion notes and dated change summaries.
 - `rebuild/`: Notes on the current service split, authentication, configuration, placement, and local run workflow.
 
