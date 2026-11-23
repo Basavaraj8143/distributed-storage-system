@@ -39,6 +39,10 @@ services:
       APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in .env (copy .env.example)}
       # Secret shared with every storage node. Must be the same value on the master and the nodes.
       NODE_TOKEN: ${NODE_TOKEN:?Set NODE_TOKEN in .env (copy .env.example)}
+      # API docs (Swagger UI and /v3/api-docs) are off in production because the spec lists every endpoint.
+      # To turn them on temporarily, run with SWAGGER_ENABLED=true in .env.
+      SPRINGDOC_API_DOCS_ENABLED: ${SWAGGER_ENABLED:-false}
+      SPRINGDOC_SWAGGER_UI_ENABLED: ${SWAGGER_ENABLED:-false}
       STORAGE_NODES: http://storage-node-1:5001,http://storage-node-2:5002,http://storage-node-3:5003,http://storage-node-4:5004,http://storage-node-5:5005
       JAVA_TOOL_OPTIONS: "-Xmx512m -XX:+UseSerialGC"
     expose:

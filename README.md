@@ -219,7 +219,7 @@ Full details are in [docs/api/endpoints.md](docs/api/endpoints.md), and a ready-
 
 ### Swagger UI
 
-With the master running, open **http://localhost:8080/swagger-ui.html** to browse and try the API. The raw OpenAPI spec is at `/v3/api-docs`. Click **Authorize** and enter `APP_USERNAME` and `APP_PASSWORD` so "Try it out" can call the protected endpoints; `POST /heartbeat` asks for the node token instead. The documentation pages are public, the API calls are not. On a public deployment, switch the docs off with `SPRINGDOC_API_DOCS_ENABLED=false` and `SPRINGDOC_SWAGGER_UI_ENABLED=false`.
+With the master running, open **http://localhost:8080/swagger-ui.html** to browse and try the API. The raw OpenAPI spec is at `/v3/api-docs`. Click **Authorize** and enter `APP_USERNAME` and `APP_PASSWORD` so "Try it out" can call the protected endpoints; `POST /heartbeat` asks for the node token instead. The documentation pages are public, the API calls are not. `compose.prod.yaml` switches the docs off by default (set `SWAGGER_ENABLED=true` in `.env` to turn them on); for other setups use `SPRINGDOC_API_DOCS_ENABLED=false` and `SPRINGDOC_SWAGGER_UI_ENABLED=false`.
 
 ## Project layout
 
@@ -313,4 +313,4 @@ Planned, in rough priority order:
 
 ## License
 
-No `LICENSE` file is present in the repository yet. Add one (for example MIT) to make the terms explicit.
+Released under the [MIT License](LICENSE).
