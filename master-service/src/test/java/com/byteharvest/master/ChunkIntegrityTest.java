@@ -13,6 +13,7 @@ import com.byteharvest.master.repository.FileMetadataRepository;
 import com.byteharvest.master.service.ChunkRepairService;
 import com.byteharvest.master.service.DownloadService;
 import com.byteharvest.master.service.EventLogService;
+import com.byteharvest.master.service.EventPublisher;
 import com.byteharvest.master.service.HeartbeatService;
 import com.byteharvest.master.service.UploadService;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,6 +43,9 @@ class ChunkIntegrityTest {
     private EventLogService eventLogService;
 
     @Mock
+    private EventPublisher eventPublisher;
+
+    @Mock
     private HeartbeatService heartbeatService;
 
     @Mock
@@ -65,7 +69,7 @@ class ChunkIntegrityTest {
         return new UploadService(
                 new StorageProperties(replicationFactor, chunkSizeBytes, FIVE_NODES),
                 nodeClient(), new RandomPlacementStrategy(), eventLogService, heartbeatService,
-                fileMetadataRepository, chunkMetadataRepository);
+                fileMetadataRepository, chunkMetadataRepository, eventPublisher);
     }
 
     private ChunkRepairService repairServiceWith(int replicationFactor) {
@@ -137,6 +141,33 @@ class ChunkIntegrityTest {
             assertNotNull(chunk.getChecksum());
             assertEquals(64, chunk.getChecksum().length());
         }
+    }
+
+    @Test
+    void uploadPublishesFileUploadedWithTheFileId() {
+        MockMultipartFile file = new MockMultipartFile("file", "test.txt", "text/plain", "hello".getBytes());
+
+        String fileId = uploadService.handleUpload(file);
+
+        verify(eventPublisher).publish(EventPublisher.FILE_UPLOADED, fileId);
+    }
+
+    @Test
+    void failedUploadPublishesNothing() {
+        when(heartbeatService.getActiveNodeUrls()).thenReturn(Set.of("http://localhost:5003"));
+        MockMultipartFile file = new MockMultipartFile("file", "test.txt", "text/plain", "hello".getBytes());
+
+        assertThrows(InsufficientNodesException.class, () -> uploadService.handleUpload(file));
+
+        verify(eventPublisher, never()).publish(anyString(), anyString());
+    }
+
+    @Test
+    void uploadStillSucceedsWhenPublishingFails() {
+        doThrow(new RuntimeException("broker down")).when(eventPublisher).publish(anyString(), anyString());
+        MockMultipartFile file = new MockMultipartFile("file", "test.txt", "text/plain", "hello".getBytes());
+
+        assertNotNull(uploadService.handleUpload(file));
     }
 
     @Test

@@ -13,6 +13,7 @@ import com.byteharvest.master.repository.ChunkMetadataRepository;
 import com.byteharvest.master.repository.FileMetadataRepository;
 import com.byteharvest.master.service.DownloadService;
 import com.byteharvest.master.service.EventLogService;
+import com.byteharvest.master.service.EventPublisher;
 import com.byteharvest.master.service.FileManagementService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,9 @@ class FileManagementServiceTest {
     private EventLogService eventLogService;
 
     @Mock
+    private EventPublisher eventPublisher;
+
+    @Mock
     private FileMetadataRepository fileMetadataRepository;
 
     @Mock
@@ -59,7 +63,7 @@ class FileManagementServiceTest {
                 List.of("http://localhost:5001", "http://localhost:5002", "http://localhost:5003"));
         RestStorageNodeClient nodeClient = new RestStorageNodeClient(restTemplate);
 
-        fileManagementService = new FileManagementService(properties, nodeClient, eventLogService, fileMetadataRepository);
+        fileManagementService = new FileManagementService(properties, nodeClient, eventLogService, fileMetadataRepository, eventPublisher);
         downloadService = new DownloadService(nodeClient, eventLogService, fileMetadataRepository, chunkMetadataRepository);
     }
 
@@ -125,6 +129,35 @@ class FileManagementServiceTest {
 
         verify(fileMetadataRepository, never()).delete(org.mockito.ArgumentMatchers.any(FileMetadataEntity.class));
         verify(restTemplate, never()).delete(anyString());
+    }
+
+    @Test
+    void deleteFilePublishesFileDeletedWithTheFileId() {
+        when(fileMetadataRepository.findById(FILE_ID)).thenReturn(Optional.of(fileWithChunks("a.txt", 2)));
+
+        fileManagementService.deleteFile(FILE_ID);
+
+        verify(eventPublisher).publish(EventPublisher.FILE_DELETED, FILE_ID);
+    }
+
+    @Test
+    void deleteUnknownFilePublishesNothing() {
+        when(fileMetadataRepository.findById(FILE_ID)).thenReturn(Optional.empty());
+
+        assertThrows(StoredFileNotFoundException.class, () -> fileManagementService.deleteFile(FILE_ID));
+
+        verify(eventPublisher, never()).publish(anyString(), anyString());
+    }
+
+    @Test
+    void deleteStillSucceedsWhenPublishingFails() {
+        FileMetadataEntity file = fileWithChunks("a.txt", 2);
+        when(fileMetadataRepository.findById(FILE_ID)).thenReturn(Optional.of(file));
+        doThrow(new RuntimeException("broker down")).when(eventPublisher).publish(anyString(), anyString());
+
+        fileManagementService.deleteFile(FILE_ID);
+
+        verify(fileMetadataRepository).delete(file);
     }
 
     // ---- list / details ----

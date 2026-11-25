@@ -10,7 +10,6 @@ import com.byteharvest.master.placement.PlacementStrategy;
 import com.byteharvest.master.repository.ChunkMetadataRepository;
 import com.byteharvest.master.repository.FileMetadataRepository;
 import com.byteharvest.master.util.Checksums;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -37,19 +36,6 @@ public class UploadService {
     private final ChunkMetadataRepository chunkMetadataRepository;
     private final EventPublisher eventPublisher;
 
-    /** Without a publisher (for example in plain unit tests): nothing is published. */
-    public UploadService(StorageProperties properties,
-                         StorageNodeClient nodeClient,
-                         PlacementStrategy placementStrategy,
-                         EventLogService eventLogService,
-                         HeartbeatService heartbeatService,
-                         FileMetadataRepository fileMetadataRepository,
-                         ChunkMetadataRepository chunkMetadataRepository) {
-        this(properties, nodeClient, placementStrategy, eventLogService, heartbeatService,
-                fileMetadataRepository, chunkMetadataRepository, (type, payload) -> { });
-    }
-
-    @Autowired
     public UploadService(StorageProperties properties,
                          StorageNodeClient nodeClient,
                          PlacementStrategy placementStrategy,
