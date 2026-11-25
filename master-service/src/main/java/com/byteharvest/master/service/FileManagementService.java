@@ -9,6 +9,7 @@ import com.byteharvest.master.model.ChunkInfo;
 import com.byteharvest.master.model.FileDetails;
 import com.byteharvest.master.model.FileSummary;
 import com.byteharvest.master.repository.FileMetadataRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -29,11 +30,23 @@ public class FileManagementService {
     private final StorageNodeClient nodeClient;
     private final EventLogService eventLogService;
     private final FileMetadataRepository fileMetadataRepository;
+    private final EventPublisher eventPublisher;
 
+    /** Without a publisher (for example in plain unit tests): nothing is published. */
     public FileManagementService(StorageProperties properties,
                                  StorageNodeClient nodeClient,
                                  EventLogService eventLogService,
                                  FileMetadataRepository fileMetadataRepository) {
+        this(properties, nodeClient, eventLogService, fileMetadataRepository, (type, payload) -> { });
+    }
+
+    @Autowired
+    public FileManagementService(StorageProperties properties,
+                                 StorageNodeClient nodeClient,
+                                 EventLogService eventLogService,
+                                 FileMetadataRepository fileMetadataRepository,
+                                 EventPublisher eventPublisher) {
+        this.eventPublisher = eventPublisher;
         this.properties = properties;
         this.nodeClient = nodeClient;
         this.eventLogService = eventLogService;
@@ -126,6 +139,15 @@ public class FileManagementService {
         } else {
             eventLogService.warn("DELETE", "Deleted fileId=" + fileId + " chunks=" + chunkNodes.size()
                     + " but " + failures + " replica(s) could not be removed from their nodes");
+        }
+        announceDelete(fileId);
+    }
+
+    private void announceDelete(String fileId) {
+        try {
+            eventPublisher.publish(EventPublisher.FILE_DELETED, fileId);
+        } catch (RuntimeException ignored) {
+            // Best effort: announcing a delete must never fail the delete.
         }
     }
 

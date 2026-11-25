@@ -261,7 +261,7 @@ The tests need no environment variables; they set their own password and token. 
 docker compose -f compose.prod.yaml up -d --build
 ```
 
-Server setup notes (Oracle Cloud Always Free) are in [docs/deployment/oracle-cloud.md](docs/deployment/oracle-cloud.md).
+Server setup notes are in [docs/deployment/oracle-cloud.md](docs/deployment/oracle-cloud.md) (Oracle Cloud Always Free) and [docs/deployment/aws-ec2.md](docs/deployment/aws-ec2.md) (AWS EC2, started and stopped on demand).
 
 ## How it compares to HDFS
 

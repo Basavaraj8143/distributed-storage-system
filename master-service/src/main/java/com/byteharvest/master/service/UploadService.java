@@ -10,6 +10,7 @@ import com.byteharvest.master.placement.PlacementStrategy;
 import com.byteharvest.master.repository.ChunkMetadataRepository;
 import com.byteharvest.master.repository.FileMetadataRepository;
 import com.byteharvest.master.util.Checksums;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -34,7 +35,9 @@ public class UploadService {
     private final HeartbeatService heartbeatService;
     private final FileMetadataRepository fileMetadataRepository;
     private final ChunkMetadataRepository chunkMetadataRepository;
+    private final EventPublisher eventPublisher;
 
+    /** Without a publisher (for example in plain unit tests): nothing is published. */
     public UploadService(StorageProperties properties,
                          StorageNodeClient nodeClient,
                          PlacementStrategy placementStrategy,
@@ -42,6 +45,20 @@ public class UploadService {
                          HeartbeatService heartbeatService,
                          FileMetadataRepository fileMetadataRepository,
                          ChunkMetadataRepository chunkMetadataRepository) {
+        this(properties, nodeClient, placementStrategy, eventLogService, heartbeatService,
+                fileMetadataRepository, chunkMetadataRepository, (type, payload) -> { });
+    }
+
+    @Autowired
+    public UploadService(StorageProperties properties,
+                         StorageNodeClient nodeClient,
+                         PlacementStrategy placementStrategy,
+                         EventLogService eventLogService,
+                         HeartbeatService heartbeatService,
+                         FileMetadataRepository fileMetadataRepository,
+                         ChunkMetadataRepository chunkMetadataRepository,
+                         EventPublisher eventPublisher) {
+        this.eventPublisher = eventPublisher;
         this.properties = properties;
         this.nodeClient = nodeClient;
         this.placementStrategy = placementStrategy;
@@ -99,6 +116,7 @@ public class UploadService {
             }
 
             eventLogService.info("UPLOAD", "Upload complete fileId=" + fileId + " chunks=" + chunkIndex);
+            announceUpload(fileId);
 
             return fileId;
 
@@ -108,6 +126,14 @@ public class UploadService {
         } catch (Exception e) {
             eventLogService.error("UPLOAD", "Upload failed: " + e.getMessage());
             throw new RuntimeException(e);
+        }
+    }
+
+    private void announceUpload(String fileId) {
+        try {
+            eventPublisher.publish(EventPublisher.FILE_UPLOADED, fileId);
+        } catch (RuntimeException ignored) {
+            // Best effort: announcing an upload must never fail the upload.
         }
     }
 

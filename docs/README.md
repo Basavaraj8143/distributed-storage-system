@@ -7,6 +7,7 @@ Project documentation is grouped by topic below.
 - [API endpoints](api/endpoints.md): Master and storage-node routes.
 - [WSL setup guide](setup/wsl-setup.md): Running the services from WSL.
 - [Oracle Cloud deployment](deployment/oracle-cloud.md): Single-server deployment notes.
+- [AWS EC2 deployment](deployment/aws-ec2.md): Running the same setup on an EC2 instance that you start and stop when needed.
 - [CI pipeline](ci-pipeline.md): GitHub Actions build and verification workflow.
 - [Postman collection](postman/byteharvest-api.postman_collection.json) and [local environment](postman/byteharvest-local.postman_environment.json): API requests for local development.
 

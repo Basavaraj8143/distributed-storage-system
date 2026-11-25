@@ -13,6 +13,10 @@ services:
       # Secret shared with every storage node. Must be the same value on the master and the nodes.
       NODE_TOKEN: ${NODE_TOKEN:?Set NODE_TOKEN in .env (copy .env.example)}
       STORAGE_NODES: http://storage-node-1:5001,http://storage-node-2:5002,http://storage-node-3:5003,http://storage-node-4:5004,http://storage-node-5:5005
+      # Optional Kafka event stream. Off unless KAFKA_ENABLED=true in .env; needs compose.kafka.yaml
+      # (docker compose -f compose.yaml -f compose.kafka.yaml up). See docs/rebuild/kafka-events.md.
+      KAFKA_ENABLED: ${KAFKA_ENABLED:-false}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
     ports:
       - "8080:8080"
     volumes:
